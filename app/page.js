@@ -1,12 +1,15 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import dynamic from 'next/dynamic';
 import { Shield, CheckCircle, Lock, Zap, ArrowRight, Sparkles, TrendingUp } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Card, CardContent } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
+import BackgroundPaths from '../components/background-paths';
 import Link from 'next/link';
+import { getCurrentCounter } from '../lib/web3';
 
 // Dynamically import Lottie to avoid SSR issues
 const Lottie = dynamic(() => import('lottie-react'), { ssr: false });
@@ -14,6 +17,26 @@ const Lottie = dynamic(() => import('lottie-react'), { ssr: false });
 export default function Home() {
   // Import the animation
   const certificateAnimation = require('../public/animations/Certificate.json');
+
+  const [certificatesIssued, setCertificatesIssued] = useState('1,000+');
+
+  // Fetch actual certificates count on mount
+  useEffect(() => {
+    const fetchCertificatesCount = async () => {
+      try {
+        const result = await getCurrentCounter();
+        if (result.success) {
+          const count = result.counter - 1000; // Certificates start from 1001
+          setCertificatesIssued(count.toLocaleString());
+        }
+      } catch (error) {
+        console.error('Failed to fetch certificates count:', error);
+        // Keep default value if fetch fails
+      }
+    };
+
+    fetchCertificatesCount();
+  }, []);
 
   const features = [
     {
@@ -47,22 +70,14 @@ export default function Home() {
   ];
 
   const stats = [
-    { label: 'Certificates Issued', value: '1,000+', icon: TrendingUp },
-    { label: 'Uptime', value: '99.9%', icon: CheckCircle },
-    { label: 'Support', value: '24/7', icon: Shield },
+    { label: 'Certificates Issued', value: certificatesIssued , icon: TrendingUp },
   ];
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen bg-neutral-950">
+
       {/* Hero Section */}
-      <section className="relative pt-24 pb-20 px-4 sm:px-6 lg:px-8 overflow-hidden">
-        {/* Subtle Background Pattern */}
-        <div className="absolute inset-0 -z-10 opacity-[0.03] dark:opacity-[0.05]">
-          <div className="absolute inset-0" style={{
-            backgroundImage: `radial-gradient(circle at 1px 1px, hsl(var(--foreground)) 1px, transparent 0)`,
-            backgroundSize: '40px 40px'
-          }}></div>
-        </div>
+      <section className="relative pt-24 pb-20 px-4 sm:px-6 lg:px-8 overflow-hidden bg-transparent">
 
         <div className="max-w-7xl mx-auto">
           <div className="grid lg:grid-cols-2 gap-12 items-center">
@@ -101,7 +116,7 @@ export default function Home() {
               </div>
 
               {/* Stats */}
-              <div className="grid grid-cols-3 gap-4 mt-12 pt-8 border-t">
+              <div className="grid grid-cols-3 gap-4 mt-20 pt-2 border-t">
                 {stats.map((stat, index) => (
                   <motion.div
                     key={index}
@@ -110,7 +125,6 @@ export default function Home() {
                     transition={{ delay: 0.1 * index, duration: 0.5 }}
                   >
                     <div className="flex items-center gap-1 text-primary mb-1">
-                      <stat.icon className="h-4 w-4" />
                       <div className="text-2xl font-bold">{stat.value}</div>
                     </div>
                     <div className="text-xs text-muted-foreground">{stat.label}</div>
@@ -139,7 +153,7 @@ export default function Home() {
       </section>
 
       {/* Features Section */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8 bg-muted/30">
+      <section className="py-20 px-4 sm:px-6 lg:px-8 bg-neutral-900">
         <div className="max-w-7xl mx-auto">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -186,7 +200,7 @@ export default function Home() {
       </section>
 
       {/* CTA Section */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8">
+      <section className="py-20 px-4 sm:px-6 lg:px-8 bg-neutral-950">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}

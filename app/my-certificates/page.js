@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { motion } from 'framer-motion';
-import { Award, Calendar, CheckCircle, ExternalLink, TrendingUp, Loader2, AlertCircle } from 'lucide-react';
+import { Award, Calendar, CheckCircle, ExternalLink, TrendingUp, Loader2, AlertCircle, Palette } from 'lucide-react';
 import { Button } from '../../components/ui/button';
 import { Card, CardContent } from '../../components/ui/card';
 import { Badge } from '../../components/ui/badge';
@@ -101,6 +101,29 @@ export default function MyCertificates() {
               </Badge>
             )}
           </div>
+
+          {/* Template Editor Access */}
+          <Card className="mb-6 border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-950/20">
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="p-3 bg-blue-100 dark:bg-blue-900/50 rounded-lg">
+                    <Palette className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-blue-900 dark:text-blue-100">Certificate Templates</h3>
+                    <p className="text-sm text-blue-700 dark:text-blue-300">Create and customize certificate templates for future use</p>
+                  </div>
+                </div>
+                <Link href="/edit-template">
+                  <Button className="gap-2">
+                    <Palette className="h-4 w-4" />
+                    Edit Templates
+                  </Button>
+                </Link>
+              </div>
+            </CardContent>
+          </Card>
 
           {/* Wallet Connection */}
           {!walletAddress && (

@@ -99,6 +99,32 @@ export const AuthProvider = ({ children }) => {
   };
 
   const signOut = async () => {
+    try {
+      // Try to revoke permissions if supported (opens MetaMask)
+      if (typeof window.ethereum !== 'undefined' && window.ethereum.request) {
+        try {
+          await window.ethereum.request({
+            method: 'wallet_revokePermissions',
+            params: [{ eth_accounts: {} }],
+          });
+        } catch (error) {
+          // wallet_revokePermissions might not be supported, try alternative method
+          console.log('wallet_revokePermissions not supported, trying alternative...');
+          
+          // Try to request permissions again to open MetaMask
+          try {
+            await window.ethereum.request({
+              method: 'eth_requestAccounts',
+            });
+          } catch (altError) {
+            console.log('Could not trigger MetaMask to open for disconnection');
+          }
+        }
+      }
+    } catch (error) {
+      console.log('Error during wallet disconnection:', error);
+    }
+
     // Clear wallet address from state
     setWalletAddress(null);
     // Set flag to prevent auto-reconnect on reload

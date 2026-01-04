@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Menu, X, Shield, Wallet, LogOut } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
@@ -27,13 +28,15 @@ export default function Navbar() {
   const navItems = [
     { name: 'Home', href: '/' },
     { name: 'Verify', href: '/verify' },
-    { name: 'About', href: '/about' },
   ];
 
   const authenticatedItems = [
-    { name: 'Create Certificate', href: '/create' },
-    { name: 'My Certificates', href: '/my-certificates' },
+    { name: 'Create', href: '/create' },
+    { name: 'Issued Certificates', href: '/my-certificates' },
+    { name: 'Templates', href: '/edit-template' },
   ];
+
+  const aboutItem = { name: 'About', href: '/about' };
 
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 border-b bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/60">
@@ -42,15 +45,15 @@ export default function Navbar() {
           {/* Logo */}
           <Link href="/" className="flex items-center space-x-2 group">
             <div className="relative">
-              <Shield className="h-7 w-7 text-primary group-hover:scale-110 transition-transform" />
+              <Shield className="h-6 w-6 text-primary group-hover:scale-110 transition-transform" />
             </div>
-            <span className="text-xl font-bold text-foreground">
+            <span className="text-lg font-bold text-foreground">
               Conf<span className="text-primary">Cert</span>
             </span>
           </Link>
 
           {/* Desktop Navigation */}
-          <div className="hidden md:flex items-center space-x-1">
+          <div className="hidden md:flex items-center space-x-0.5">
             {navItems.map((item) => (
               <Link key={item.name} href={item.href}>
                 <Button variant="ghost" className="font-medium">
@@ -66,16 +69,22 @@ export default function Navbar() {
                 </Button>
               </Link>
             ))}
+
+            <Link href={aboutItem.href}>
+              <Button variant="ghost" className="font-medium">
+                {aboutItem.name}
+              </Button>
+            </Link>
           </div>
 
           {/* Connect Wallet / User Menu */}
-          <div className="hidden md:flex items-center gap-3">
+          <div className="hidden md:flex items-center gap-2">
             {loading ? (
               <div className="text-sm text-muted-foreground">Loading...</div>
             ) : walletAddress ? (
               <>
-                <Badge variant="secondary" className="font-mono text-xs px-3 py-1.5">
-                  <Wallet className="h-3 w-3 mr-1.5" />
+                <Badge variant="secondary" className="font-mono text-xs px-2 py-1">
+                  <Wallet className="h-3 w-3 mr-1" />
                   {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
                 </Badge>
                 <Button
@@ -97,6 +106,20 @@ export default function Navbar() {
                 Connect Wallet
               </Button>
             )}
+                        <a
+              href="https://github.com/Shubhamk0174/confcert-blockchain"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="p-1.5 rounded-lg hover:bg-accent transition-colors"
+            >
+              <Image
+                src="/icons/icons8-github-64.png"
+                alt="GitHub"
+                width={24}
+                height={24}
+                className="transition-opacity dark:invert"
+              />
+            </a>
           </div>
 
           {/* Mobile menu button */}
@@ -140,7 +163,28 @@ export default function Navbar() {
                 </Link>
               ))}
 
+              <Link href={aboutItem.href} onClick={() => setIsOpen(false)}>
+                <Button variant="ghost" className="w-full justify-start">
+                  {aboutItem.name}
+                </Button>
+              </Link>
+
               <div className="pt-2 border-t">
+                <a
+                  href="https://github.com/Shubhamk0174/confcert-blockchain"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 p-2 rounded-lg hover:bg-accent transition-colors mb-2"
+                >
+                  <Image
+                    src="/icons/icons8-github-64.png"
+                    alt="GitHub"
+                    width={20}
+                    height={20}
+                    className="opacity-75 dark:invert"
+                  />
+                  <span>GitHub</span>
+                </a>
                 {walletAddress ? (
                   <>
                     <Badge variant="secondary" className="w-full justify-start font-mono mb-2">

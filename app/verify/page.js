@@ -152,18 +152,18 @@ export default function Verify() {
               {result.valid && result.certificate ? (
                 <div className="space-y-4">
                   {/* Success Header */}
-                  <Alert className="border-green-500/50 bg-green-50">
-                    <CheckCircle className="h-5 w-5 text-green-600" />
-                    <AlertTitle className="text-green-900 text-lg">✅ Certificate Verified Successfully!</AlertTitle>
-                    <AlertDescription className="text-green-800">
+                  <Alert className="border-primary/50 bg-primary/5">
+                    <CheckCircle className="h-5 w-5 text-primary" />
+                    <AlertTitle className="text-primary text-lg">✅ Certificate Verified Successfully!</AlertTitle>
+                    <AlertDescription className="text-primary/80">
                       This certificate is authentic and registered on the Sepolia blockchain.
                     </AlertDescription>
                   </Alert>
 
                   {/* Certificate Details Card */}
-                  <Card className="border-2 border-green-200">
-                    <CardHeader className="bg-green-50">
-                      <div className="flex items-center justify-between">
+                  <Card className="border-2 ">
+                    <CardHeader className="">
+                      <div className="flex items-center justify-between pt-2">
                         <CardTitle className="text-2xl">Certificate #{result.certificate.id}</CardTitle>
                         <Badge className="bg-green-600">Verified</Badge>
                       </div>
@@ -229,7 +229,7 @@ export default function Verify() {
                       {/* Certificate Preview */}
                       <div className="border-t pt-6">
                         <h3 className="text-lg font-semibold mb-3">Certificate Preview</h3>
-                        <div className="bg-gray-100 rounded-lg p-4 flex items-center justify-center min-h-50 relative">
+                        <div className="bg-gray-100 rounded-lg p-4 flex items-center justify-center min-h-149.25 relative">
                           <Image 
                             fill
                             src={getIPFSUrl(result.certificate.ipfsHash)}
