@@ -16,6 +16,9 @@ import {
   Palette,
   FileImage,
   Mail,
+  Users,
+  Table,
+  Download,
 } from "lucide-react";
 import { Button } from "../../components/ui/button";
 import {
@@ -31,12 +34,14 @@ import { Alert, AlertDescription } from "../../components/ui/alert";
 import { getIPFSUrl } from "../../lib/ipfs";
 import {
   issueCertificate,
+  bulkIssueCertificates,
   connectWallet,
   getCurrentAccount,
   getEtherscanLink,
 } from "../../lib/web3";
 import NextImage from "next/image";
 import localforage from 'localforage';
+import * as XLSX from 'xlsx';
 
 export default function CreateCertificate() {
   const { user } = useAuth();
@@ -67,6 +72,13 @@ export default function CreateCertificate() {
   });
 
   const [sendEmail, setSendEmail] = useState(true);
+
+  // Bulk upload state
+  const [isBulkMode, setIsBulkMode] = useState(false);
+  const [excelFile, setExcelFile] = useState(null);
+  const [studentsData, setStudentsData] = useState([]);
+  const [bulkProgress, setBulkProgress] = useState({ current: 0, total: 0 });
+  const [bulkResults, setBulkResults] = useState(null);
 
   // Check wallet connection on mount
   useEffect(() => {
@@ -544,8 +556,203 @@ export default function CreateCertificate() {
     setError("");
     setUseTemplate(false);
     setSelectedTemplate(null);
+    setIsBulkMode(false);
+    setExcelFile(null);
+    setStudentsData([]);
+    setBulkProgress({ current: 0, total: 0 });
+    setBulkResults(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
+    }
+  };
+
+  // Excel file handling
+  const handleExcelUpload = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    if (!file.name.endsWith('.xlsx') && !file.name.endsWith('.xls')) {
+      setError("Please upload a valid Excel file (.xlsx or .xls)");
+      return;
+    }
+
+    setExcelFile(file);
+    setError("");
+
+    // Read and parse Excel file
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const data = new Uint8Array(event.target.result);
+        const workbook = XLSX.read(data, { type: 'array' });
+        const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+        const jsonData = XLSX.utils.sheet_to_json(firstSheet);
+
+        // Validate data structure
+        if (jsonData.length === 0) {
+          setError("Excel file is empty");
+          return;
+        }
+
+        const students = jsonData.map((row, index) => {
+          const name = row.name || row.Name || row.studentName || row.StudentName || "";
+          const email = row.email || row.Email || "";
+
+          if (!name) {
+            throw new Error(`Row ${index + 1}: Missing name field`);
+          }
+
+          return {
+            name: name.trim(),
+            email: email.trim(),
+          };
+        });
+
+        if (students.length > 100) {
+          setError("Cannot process more than 100 students at once. Please split into multiple files.");
+          return;
+        }
+
+        setStudentsData(students);
+        setError("");
+      } catch (err) {
+        setError(`Failed to parse Excel file: ${err.message}`);
+        setStudentsData([]);
+      }
+    };
+
+    reader.onerror = () => {
+      setError("Failed to read Excel file");
+    };
+
+    reader.readAsArrayBuffer(file);
+  };
+
+  const downloadExcelTemplate = () => {
+    const template = [
+      { name: "John Doe", email: "john@example.com" },
+      { name: "Jane Smith", email: "jane@example.com" },
+      { name: "Bob Johnson", email: "bob@example.com" },
+    ];
+
+    const worksheet = XLSX.utils.json_to_sheet(template);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Students");
+    XLSX.writeFile(workbook, "certificate_template.xlsx");
+  };
+
+  const handleBulkIssue = async () => {
+    if (!walletAddress) {
+      setError("Please connect your wallet first");
+      return;
+    }
+
+    if (!selectedTemplate) {
+      setError("Please select a template for bulk issuance");
+      return;
+    }
+
+    if (studentsData.length === 0) {
+      setError("Please upload an Excel file with student data");
+      return;
+    }
+
+    setError("");
+    setLoading(true);
+    setIssuingOnChain(true);
+    setTransactionStatus("pending");
+    setBulkProgress({ current: 0, total: studentsData.length });
+
+    try {
+      // Step 1: Generate all certificates
+      const certificates = [];
+      for (let i = 0; i < studentsData.length; i++) {
+        setBulkProgress({ current: i + 1, total: studentsData.length, stage: 'Generating certificates' });
+        const blob = await generateCertificateFromTemplate(selectedTemplate, studentsData[i].name);
+        certificates.push({ blob, student: studentsData[i] });
+      }
+
+      // Step 2: Upload all to IPFS
+      const ipfsHashes = [];
+      for (let i = 0; i < certificates.length; i++) {
+        setBulkProgress({ current: i + 1, total: certificates.length, stage: 'Uploading to IPFS' });
+        
+        const formDataUpload = new FormData();
+        formDataUpload.append('file', certificates[i].blob);
+
+        const response = await fetch('/api/upload-to-ipfs', {
+          method: 'POST',
+          body: formDataUpload,
+        });
+
+        const uploadResult = await response.json();
+
+        if (!response.ok) {
+          throw new Error(`Failed to upload certificate ${i + 1} to IPFS: ${uploadResult.error}`);
+        }
+
+        ipfsHashes.push(uploadResult.ipfsHash);
+      }
+
+      // Step 3: Issue all certificates in one blockchain transaction
+      setBulkProgress({ current: 0, total: studentsData.length, stage: 'Issuing on blockchain' });
+      setTransactionStatus("mining");
+
+      const studentNames = studentsData.map(s => s.name);
+      const result = await bulkIssueCertificates(studentNames, ipfsHashes);
+
+      if (result.success) {
+        setTransactionStatus("success");
+        setTransactionHash(result.transactionHash);
+        
+        // Store results
+        const results = studentsData.map((student, index) => ({
+          name: student.name,
+          email: student.email,
+          certificateId: result.certificateIds[index],
+          ipfsHash: ipfsHashes[index],
+        }));
+        
+        setBulkResults(results);
+
+        // Step 4: Send emails to all students
+        if (sendEmail) {
+          setBulkProgress({ current: 0, total: results.length, stage: 'Sending emails' });
+          
+          for (let i = 0; i < results.length; i++) {
+            if (results[i].email) {
+              try {
+                await fetch('/api/send-certificate-email', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    to: results[i].email,
+                    studentName: results[i].name,
+                    certificateId: results[i].certificateId,
+                    ipfsHash: results[i].ipfsHash,
+                    issuerAddress: walletAddress,
+                    transactionHash: result.transactionHash,
+                  }),
+                });
+              } catch (emailError) {
+                console.error(`Failed to send email to ${results[i].email}:`, emailError);
+              }
+            }
+            setBulkProgress({ current: i + 1, total: results.length, stage: 'Sending emails' });
+          }
+        }
+
+        setSuccess(true);
+      } else {
+        setTransactionStatus("");
+        setError(result.error);
+      }
+    } catch (err) {
+      setTransactionStatus("");
+      setError("Failed to issue certificates in bulk: " + err.message);
+    } finally {
+      setLoading(false);
+      setIssuingOnChain(false);
     }
   };
 
@@ -565,6 +772,32 @@ export default function CreateCertificate() {
             <p className="text-muted-foreground">
               Upload certificate to IPFS and register on blockchain
             </p>
+            
+            {/* Mode Toggle */}
+            <div className="mt-4 flex gap-3">
+              <Button
+                variant={!isBulkMode ? "default" : "outline"}
+                onClick={() => {
+                  setIsBulkMode(false);
+                  setError("");
+                  setBulkResults(null);
+                }}
+              >
+                <User className="mr-2 h-4 w-4" />
+                Single Certificate
+              </Button>
+              <Button
+                variant={isBulkMode ? "default" : "outline"}
+                onClick={() => {
+                  setIsBulkMode(true);
+                  setError("");
+                  setSuccess(false);
+                }}
+              >
+                <Users className="mr-2 h-4 w-4" />
+                Bulk Issue
+              </Button>
+            </div>
           </div>
 
           {/* Wallet Connection */}
@@ -617,7 +850,274 @@ export default function CreateCertificate() {
             </Alert>
           )}
 
-          {/* Form */}
+          {/* Bulk Upload Section */}
+          {isBulkMode ? (
+            <Card>
+              <CardHeader>
+                <CardTitle>Bulk Certificate Issuance</CardTitle>
+                <CardDescription>
+                  Upload an Excel file with student details to issue multiple certificates at once
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {/* Template Selection for Bulk */}
+                <div className="space-y-4">
+                  <label className="text-sm font-medium flex items-center gap-2">
+                    <Palette className="h-4 w-4 text-muted-foreground" />
+                    Select Certificate Template *
+                  </label>
+
+                  {availableTemplates.length === 0 ? (
+                    <div className="text-center py-8 border-2 border-dashed rounded-lg">
+                      <Palette className="h-12 w-12 text-muted-foreground mx-auto mb-2" />
+                      <p className="text-sm text-muted-foreground mb-4">
+                        No saved templates found
+                      </p>
+                      <Button asChild variant="outline">
+                        <Link href="/edit-template">Create Template</Link>
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="flex flex-wrap gap-2">
+                      {availableTemplates.map((template, index) => (
+                        <button
+                          key={index}
+                          type="button"
+                          onClick={() => handleTemplateSelect(template)}
+                          className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
+                            selectedTemplate === template
+                              ? "bg-primary text-primary-foreground shadow-md"
+                              : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
+                          }`}
+                        >
+                          {template.name || `Template ${index + 1}`}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Excel Upload */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-sm font-medium flex items-center gap-2">
+                      <Table className="h-4 w-4 text-muted-foreground" />
+                      Upload Student List (Excel) *
+                    </label>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={downloadExcelTemplate}
+                      className="text-xs"
+                    >
+                      <Download className="h-3 w-3 mr-1" />
+                      Download Template
+                    </Button>
+                  </div>
+
+                  <div className="border-2 border-dashed rounded-lg p-6 text-center hover:border-primary transition-colors">
+                    <input
+                      type="file"
+                      accept=".xlsx,.xls"
+                      onChange={handleExcelUpload}
+                      className="hidden"
+                      id="excel-file"
+                      disabled={loading}
+                    />
+                    <label htmlFor="excel-file" className="cursor-pointer flex flex-col items-center">
+                      <Table className="h-12 w-12 text-muted-foreground mb-2" />
+                      <p className="text-sm font-medium">
+                        Click to upload Excel file
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Must contain &quot;name&quot; and &quot;email&quot; columns (Max 100 students)
+                      </p>
+                    </label>
+                  </div>
+
+                  {excelFile && (
+                    <div className="mt-3 p-3 bg-secondary rounded-lg">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <FileText className="h-4 w-4" />
+                          <span className="text-sm font-medium">{excelFile.name}</span>
+                          <Badge variant="secondary">{studentsData.length} students</Badge>
+                        </div>
+                        <CheckCircle className="h-5 w-5 text-green-600" />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Students Preview Table */}
+                {studentsData.length > 0 && (
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Students Preview</label>
+                    <div className="border rounded-lg overflow-hidden">
+                      <div className="max-h-64 overflow-y-auto">
+                        <table className="w-full text-sm">
+                          <thead className="bg-secondary sticky top-0">
+                            <tr>
+                              <th className="px-4 py-2 text-left">#</th>
+                              <th className="px-4 py-2 text-left">Name</th>
+                              <th className="px-4 py-2 text-left">Email</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {studentsData.map((student, index) => (
+                              <tr key={index} className="border-t hover:bg-secondary/50">
+                                <td className="px-4 py-2">{index + 1}</td>
+                                <td className="px-4 py-2">{student.name}</td>
+                                <td className="px-4 py-2 text-muted-foreground">{student.email || '-'}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Email Option */}
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    id="sendBulkEmail"
+                    checked={sendEmail}
+                    onChange={(e) => setSendEmail(e.target.checked)}
+                    disabled={loading}
+                    className="rounded"
+                  />
+                  <label htmlFor="sendBulkEmail" className="text-sm text-muted-foreground">
+                    Send certificate emails to all students
+                  </label>
+                </div>
+
+                {/* Bulk Issue Button */}
+                <Button
+                  type="button"
+                  onClick={handleBulkIssue}
+                  disabled={
+                    loading ||
+                    !walletAddress ||
+                    !selectedTemplate ||
+                    studentsData.length === 0
+                  }
+                  className="w-full"
+                  size="lg"
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      {bulkProgress.stage || 'Processing...'}
+                      {bulkProgress.total > 0 && ` (${bulkProgress.current}/${bulkProgress.total})`}
+                    </>
+                  ) : (
+                    <>
+                      <Award className="mr-2 h-4 w-4" />
+                      Issue {studentsData.length} Certificate{studentsData.length !== 1 ? 's' : ''} in Bulk
+                    </>
+                  )}
+                </Button>
+
+                {/* Bulk Success Results */}
+                {bulkResults && transactionStatus === "success" && (
+                  <Card className="border-primary/50 bg-primary/5 shadow-lg">
+                    <CardContent className="pt-6">
+                      <div className="space-y-4">
+                        <div className="flex items-center gap-3">
+                          <div className="p-3 bg-primary rounded-full">
+                            <CheckCircle className="h-8 w-8 text-primary-foreground" />
+                          </div>
+                          <div>
+                            <h3 className="text-2xl font-bold text-primary">
+                              {bulkResults.length} Certificates Issued Successfully! 🎉
+                            </h3>
+                            <p className="text-primary/80">
+                              All certificates have been registered on the blockchain
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="bg-card rounded-lg p-4 space-y-3 border border-primary/20">
+                          <div className="flex items-center justify-between py-2">
+                            <span className="text-sm font-medium text-muted-foreground">
+                              Transaction:
+                            </span>
+                            <a
+                              href={getEtherscanLink(transactionHash)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-blue-600 hover:underline flex items-center gap-1 font-medium"
+                            >
+                              View on Etherscan <ExternalLink className="h-4 w-4" />
+                            </a>
+                          </div>
+
+                          {/* Results Table */}
+                          <div className="border rounded-lg overflow-hidden mt-4">
+                            <div className="max-h-96 overflow-y-auto">
+                              <table className="w-full text-sm">
+                                <thead className="bg-secondary sticky top-0">
+                                  <tr>
+                                    <th className="px-4 py-2 text-left">Name</th>
+                                    <th className="px-4 py-2 text-left">Certificate ID</th>
+                                    <th className="px-4 py-2 text-left">Actions</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {bulkResults.map((result, index) => (
+                                    <tr key={index} className="border-t hover:bg-secondary/50">
+                                      <td className="px-4 py-2">{result.name}</td>
+                                      <td className="px-4 py-2 font-mono">{result.certificateId}</td>
+                                      <td className="px-4 py-2">
+                                        <a
+                                          href={getIPFSUrl(result.ipfsHash)}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="text-blue-600 hover:underline text-xs flex items-center gap-1"
+                                        >
+                                          View <ExternalLink className="h-3 w-3" />
+                                        </a>
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex gap-3 pt-2">
+                          <Button onClick={resetForm} variant="outline" className="flex-1">
+                            Issue More Certificates
+                          </Button>
+                          <Button asChild className="flex-1">
+                            <Link href="/my-certificates">View My Certificates</Link>
+                          </Button>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Info */}
+                <div className="text-sm text-muted-foreground space-y-1 pt-4 border-t">
+                  <p className="font-semibold">How bulk issuance works:</p>
+                  <ol className="list-decimal list-inside space-y-1 ml-2">
+                    <li>Select a certificate template</li>
+                    <li>Upload Excel file with student names and emails</li>
+                    <li>System generates certificates for all students</li>
+                    <li>All certificates are uploaded to IPFS</li>
+                    <li>All certificates are issued in ONE blockchain transaction</li>
+                    <li>Emails are sent to all students (if enabled)</li>
+                  </ol>
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            // Original Single Certificate Form
           <Card>
             <CardHeader>
               <CardTitle>Certificate Information</CardTitle>
@@ -1016,6 +1516,7 @@ export default function CreateCertificate() {
               </form>
             </CardContent>
           </Card>
+          )}
 
           {/* Transaction Status */}
           {issuingOnChain && (

@@ -101,6 +101,54 @@ contract CertificateRegistry {
     }
     
     /**
+     * @dev Issue multiple certificates in a single transaction (bulk issuance)
+     * @param _studentNames Array of student names
+     * @param _ipfsHashes Array of IPFS hashes corresponding to each certificate
+     * @return certificateIds Array of generated certificate IDs
+     */
+    function bulkIssueCertificates(
+        string[] memory _studentNames,
+        string[] memory _ipfsHashes
+    ) public onlyAuthorized returns (uint256[] memory) {
+        require(_studentNames.length > 0, "Must provide at least one certificate");
+        require(_studentNames.length == _ipfsHashes.length, "Arrays length mismatch");
+        require(_studentNames.length <= 100, "Cannot issue more than 100 certificates at once");
+        
+        uint256[] memory certificateIds = new uint256[](_studentNames.length);
+        
+        for (uint256 i = 0; i < _studentNames.length; i++) {
+            require(bytes(_studentNames[i]).length > 0, "Student name cannot be empty");
+            require(bytes(_ipfsHashes[i]).length > 0, "IPFS hash cannot be empty");
+            
+            // Increment counter and generate new ID
+            certificateCounter++;
+            uint256 newCertificateId = certificateCounter;
+            certificateIds[i] = newCertificateId;
+            
+            // Create certificate record
+            certificates[newCertificateId] = Certificate({
+                id: newCertificateId,
+                studentName: _studentNames[i],
+                ipfsHash: _ipfsHashes[i],
+                issuer: msg.sender,
+                timestamp: block.timestamp,
+                exists: true
+            });
+            
+            // Emit event for each certificate
+            emit CertificateIssued(
+                newCertificateId,
+                _studentNames[i],
+                _ipfsHashes[i],
+                msg.sender,
+                block.timestamp
+            );
+        }
+        
+        return certificateIds;
+    }
+    
+    /**
      * @dev Verify and retrieve certificate details by ID
      * @param _certificateId The unique certificate ID to look up
      * @return id Certificate ID
