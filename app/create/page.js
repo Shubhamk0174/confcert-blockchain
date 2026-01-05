@@ -1016,7 +1016,7 @@ export default function CreateCertificate() {
                   ) : (
                     <>
                       <Award className="mr-2 h-4 w-4" />
-                      Issue {studentsData.length} Certificate{studentsData.length !== 1 ? 's' : ''} in Bulk
+                      Issue {studentsData.length} Certificate{studentsData.length !== 1 ? 's' : ''} on BlockChain
                     </>
                   )}
                 </Button>

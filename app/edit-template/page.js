@@ -83,17 +83,17 @@ export default function EditTemplatePage() {
   }
 
   return (
-    <div className="min-h-screen bg-neutral-950 pt-24 pb-20 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-white dark:bg-neutral-950 pt-24 pb-20 px-4 sm:px-6 lg:px-8">
       <div className="max-w-6xl mx-auto">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
         >
-          <h1 className="text-4xl md:text-5xl font-bold mb-4 text-white">
+          <h1 className="text-4xl md:text-5xl font-bold mb-4 text-neutral-900 dark:text-white">
             Create Certificate Template
           </h1>
-          <p className="text-lg text-neutral-400 mb-12">
+          <p className="text-lg text-neutral-600 dark:text-neutral-400 mb-12">
             Choose how you want to start designing your certificate
           </p>
 
@@ -104,16 +104,16 @@ export default function EditTemplatePage() {
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.5, delay: 0.1 }}
             >
-              <Card className="h-full hover:shadow-xl transition-all duration-300 border-neutral-800 bg-neutral-900 hover:border-primary/50">
+              <Card className="h-full hover:shadow-xl transition-all duration-300 border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 hover:border-primary/50">
                 <CardContent className="p-8">
                   <div className="flex flex-col items-center text-center">
                     <div className="w-20 h-20 bg-primary/10 rounded-2xl flex items-center justify-center mb-6">
                       <FileText className="w-10 h-10 text-primary" />
                     </div>
-                    <h2 className="text-2xl font-bold mb-4 text-white">
+                    <h2 className="text-2xl font-bold mb-4 text-neutral-900 dark:text-white">
                       Edit Default Template
                     </h2>
-                    <p className="text-neutral-400 mb-6">
+                    <p className="text-neutral-600 dark:text-neutral-400 mb-6">
                       Start with a professionally designed certificate template with pre-set background and text elements. Perfect for quick customization.
                     </p>
                     <Button
@@ -134,16 +134,16 @@ export default function EditTemplatePage() {
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.5, delay: 0.2 }}
             >
-              <Card className="h-full hover:shadow-xl transition-all duration-300 border-neutral-800 bg-neutral-900 hover:border-primary/50">
+              <Card className="h-full hover:shadow-xl transition-all duration-300 border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 hover:border-primary/50">
                 <CardContent className="p-8">
                   <div className="flex flex-col items-center text-center">
                     <div className="w-20 h-20 bg-purple-500/10 rounded-2xl flex items-center justify-center mb-6">
                       <Sparkles className="w-10 h-10 text-purple-500" />
                     </div>
-                    <h2 className="text-2xl font-bold mb-4 text-white">
+                    <h2 className="text-2xl font-bold mb-4 text-neutral-900 dark:text-white">
                       Create Your Own
                     </h2>
-                    <p className="text-neutral-400 mb-6">
+                    <p className="text-neutral-600 dark:text-neutral-400 mb-6">
                       Start from scratch with a blank canvas. Add your own background, text, logos, and design elements for complete creative freedom.
                     </p>
                     <Button
@@ -168,7 +168,7 @@ export default function EditTemplatePage() {
               transition={{ duration: 0.5, delay: 0.3 }}
               className="mt-12"
             >
-              <h2 className="text-2xl font-bold mb-6 text-white">Saved Templates</h2>
+              <h2 className="text-2xl font-bold mb-6 text-neutral-900 dark:text-white">Saved Templates</h2>
               <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {savedTemplates.map((template, index) => (
                   <motion.div
@@ -177,16 +177,16 @@ export default function EditTemplatePage() {
                     animate={{ opacity: 1, scale: 1 }}
                     transition={{ delay: index * 0.1, duration: 0.3 }}
                   >
-                    <Card className="hover:shadow-xl transition-all duration-300 border-neutral-800 bg-neutral-900 hover:border-green-500/50">
+                    <Card className="hover:shadow-xl transition-all duration-300 border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 hover:border-green-500/50">
                       <CardContent className="p-6">
                         <div className="flex flex-col items-center text-center">
                           <div className="w-16 h-16 bg-green-500/10 rounded-xl flex items-center justify-center mb-4">
                             <FileText className="w-8 h-8 text-green-500" />
                           </div>
-                          <h3 className="text-lg font-semibold mb-2 text-white">
+                          <h3 className="text-lg font-semibold mb-2 text-neutral-900 dark:text-white">
                             {template.name || `Template ${index + 1}`}
                           </h3>
-                          <div className="flex items-center gap-1 text-sm text-neutral-400 mb-4">
+                          <div className="flex items-center gap-1 text-sm text-neutral-600 dark:text-neutral-400 mb-4">
                             <Clock className="w-4 h-4" />
                             <span>{new Date(template.savedAt).toLocaleDateString()}</span>
                           </div>
@@ -219,7 +219,7 @@ export default function EditTemplatePage() {
 
           <div className="mt-8 text-center">
             <Link href="/templates">
-              <Button variant="ghost" className="text-neutral-400 hover:text-white">
+              <Button variant="ghost" className="text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white">
                 ← Back to Templates
               </Button>
             </Link>
