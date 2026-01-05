@@ -15,6 +15,7 @@ import {
   ExternalLink,
   Palette,
   FileImage,
+  Mail,
 } from "lucide-react";
 import { Button } from "../../components/ui/button";
 import {
@@ -27,7 +28,7 @@ import {
 import { Badge } from "../../components/ui/badge";
 import { Input } from "../../components/ui/input";
 import { Alert, AlertDescription } from "../../components/ui/alert";
-import { uploadToIPFS, getIPFSUrl } from "../../lib/ipfs";
+import { getIPFSUrl } from "../../lib/ipfs";
 import {
   issueCertificate,
   connectWallet,
@@ -62,7 +63,10 @@ export default function CreateCertificate() {
 
   const [formData, setFormData] = useState({
     studentName: "",
+    email: "",
   });
+
+  const [sendEmail, setSendEmail] = useState(true);
 
   // Check wallet connection on mount
   useEffect(() => {
@@ -95,6 +99,7 @@ export default function CreateCertificate() {
     setSelectedFile(null);
     setPreviewUrl(null);
     setError("");
+    setIpfsHash(""); // Clear previous IPFS hash when selecting new template
   };
 
   const renderTemplatePreview = async () => {
@@ -372,9 +377,17 @@ export default function CreateCertificate() {
         fileToUpload = selectedFile;
       }
 
-      const result = await uploadToIPFS(fileToUpload);
+      const formDataUpload = new FormData();
+      formDataUpload.append('file', fileToUpload);
 
-      if (result.success) {
+      const response = await fetch('/api/upload-to-ipfs', {
+        method: 'POST',
+        body: formDataUpload,
+      });
+
+      const result = await response.json();
+
+      if (response.ok) {
         setIpfsHash(result.ipfsHash);
         setSuccess(true);
         setTimeout(() => setSuccess(false), 3000);
@@ -394,13 +407,18 @@ export default function CreateCertificate() {
       return;
     }
 
-    if (!ipfsHash) {
-      setError("Please upload certificate to IPFS first");
+    if (!walletAddress) {
+      setError("Please connect your wallet first");
       return;
     }
 
-    if (!walletAddress) {
-      setError("Please connect your wallet first");
+    if (!useTemplate && !selectedFile) {
+      setError("Please select a certificate file or choose a template");
+      return;
+    }
+
+    if (useTemplate && !selectedTemplate) {
+      setError("Please select a template");
       return;
     }
 
@@ -409,14 +427,82 @@ export default function CreateCertificate() {
     setTransactionStatus("pending");
 
     try {
+      let currentIpfsHash = ipfsHash;
+
+      // Upload to IPFS first if not already uploaded
+      if (!currentIpfsHash) {
+        setUploadingToIPFS(true);
+        
+        let fileToUpload;
+
+        if (useTemplate) {
+          // Generate certificate image from template
+          fileToUpload = await generateCertificateFromTemplate(
+            selectedTemplate,
+            formData.studentName
+          );
+          if (!fileToUpload) {
+            throw new Error("Failed to generate certificate from template");
+          }
+        } else {
+          fileToUpload = selectedFile;
+        }
+
+        const formDataUpload = new FormData();
+        formDataUpload.append('file', fileToUpload);
+
+        const response = await fetch('/api/upload-to-ipfs', {
+          method: 'POST',
+          body: formDataUpload,
+        });
+
+        const uploadResult = await response.json();
+
+        if (response.ok) {
+          currentIpfsHash = uploadResult.ipfsHash;
+          setIpfsHash(uploadResult.ipfsHash);
+        } else {
+          throw new Error(uploadResult.error || "Failed to upload to IPFS");
+        }
+        
+        setUploadingToIPFS(false);
+      }
+
       setTransactionStatus("mining");
-      const result = await issueCertificate(formData.studentName, ipfsHash);
+      const result = await issueCertificate(formData.studentName, currentIpfsHash);
 
       if (result.success) {
         setTransactionStatus("success");
         setCertificateId(result.certificateId);
         setTransactionHash(result.transactionHash);
         setSuccess(true);
+
+        // Send email if enabled
+        if (sendEmail && formData.email) {
+          try {
+            const emailResponse = await fetch('/api/send-certificate-email', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                to: formData.email,
+                studentName: formData.studentName,
+                certificateId: result.certificateId,
+                ipfsHash: currentIpfsHash,
+                issuerAddress: walletAddress,
+                transactionHash: result.transactionHash,
+              }),
+            });
+            const emailResult = await emailResponse.json();
+            if (!emailResult.success) {
+              console.error('Failed to send email:', emailResult.error);
+            }
+          } catch (emailError) {
+            console.error('Failed to send email:', emailError);
+            // Don't set error, as certificate was issued successfully
+          }
+        }
 
         // Don't auto-reset so user can see success message
         // User can manually reset by clicking "Issue Another Certificate" button
@@ -446,7 +532,8 @@ export default function CreateCertificate() {
   };
 
   const resetForm = () => {
-    setFormData({ studentName: "" });
+    setFormData({ studentName: "", email: "" });
+    setSendEmail(false);
     setSelectedFile(null);
     setPreviewUrl(null);
     setIpfsHash("");
@@ -530,31 +617,6 @@ export default function CreateCertificate() {
             </Alert>
           )}
 
-          {/* Transaction Status */}
-          {issuingOnChain && (
-            <Card className="mb-6 border-blue-200 bg-blue-50">
-              <CardContent className="pt-6">
-                <div className="flex items-center gap-4">
-                  <Loader2 className="h-8 w-8 text-blue-600 animate-spin" />
-                  <div className="flex-1">
-                    <h3 className="font-semibold text-blue-900 mb-1">
-                      {transactionStatus === "pending" &&
-                        "Waiting for confirmation..."}
-                      {transactionStatus === "mining" &&
-                        "Transaction submitted! Mining in progress..."}
-                    </h3>
-                    <p className="text-sm text-blue-700">
-                      {transactionStatus === "pending" &&
-                        "Please confirm the transaction in MetaMask"}
-                      {transactionStatus === "mining" &&
-                        "This usually takes 15-30 seconds on Sepolia. Please wait..."}
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
           {/* Form */}
           <Card>
             <CardHeader>
@@ -581,6 +643,35 @@ export default function CreateCertificate() {
                     placeholder="Enter student's full name"
                     disabled={issuingOnChain}
                   />
+                </div>
+
+                {/* Email */}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium flex items-center gap-2">
+                    <Mail className="h-4 w-4 text-muted-foreground" />
+                    Student Email
+                  </label>
+                  <Input
+                    type="email"
+                    name="email"
+                    value={formData.email}
+                    onChange={handleChange}
+                    placeholder="Enter student's email address"
+                    disabled={issuingOnChain}
+                  />
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      id="sendEmail"
+                      checked={sendEmail}
+                      onChange={(e) => setSendEmail(e.target.checked)}
+                      disabled={issuingOnChain}
+                      className="rounded"
+                    />
+                    <label htmlFor="sendEmail" className="text-sm text-muted-foreground">
+                      Send certificate email to student
+                    </label>
+                  </div>
                 </div>
 
                 {/* Certificate Source Selection */}
@@ -657,6 +748,7 @@ export default function CreateCertificate() {
                           {availableTemplates.map((template, index) => (
                             <button
                               key={index}
+                              type="button"
                               onClick={() => handleTemplateSelect(template)}
                               className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
                                 selectedTemplate === template
@@ -789,56 +881,37 @@ export default function CreateCertificate() {
 
                 {/* Action Buttons */}
                 <div className="flex gap-3">
-                  {!ipfsHash &&
-                    (selectedFile || (useTemplate && selectedTemplate)) && (
-                      <Button
-                        type="button"
-                        onClick={handleUploadToIPFS}
-                        disabled={
-                          uploadingToIPFS ||
-                          !walletAddress ||
-                          (useTemplate && !formData.studentName)
-                        }
-                        className="flex-1"
-                      >
-                        {uploadingToIPFS ? (
-                          <>
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            Uploading to IPFS...
-                          </>
-                        ) : (
-                          <>
-                            <Upload className="mr-2 h-4 w-4" />
-                            Upload to IPFS
-                          </>
-                        )}
-                      </Button>
+                  <Button
+                    type="button"
+                    onClick={handleIssueOnBlockchain}
+                    disabled={
+                      issuingOnChain ||
+                      uploadingToIPFS ||
+                      !walletAddress ||
+                      !formData.studentName ||
+                      (!selectedFile && (!useTemplate || !selectedTemplate))
+                    }
+                    className="flex-1"
+                  >
+                    {uploadingToIPFS ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Uploading to IPFS...
+                      </>
+                    ) : issuingOnChain ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        {transactionStatus === "mining"
+                          ? "Mining Transaction..."
+                          : "Issuing..."}
+                      </>
+                    ) : (
+                      <>
+                        <Award className="mr-2 h-4 w-4" />
+                        {ipfsHash ? "Issue on Blockchain" : "Upload & Issue on Blockchain"}
+                      </>
                     )}
-
-                  {ipfsHash && (
-                    <Button
-                      type="button"
-                      onClick={handleIssueOnBlockchain}
-                      disabled={
-                        issuingOnChain ||
-                        !walletAddress ||
-                        !formData.studentName
-                      }
-                      className="flex-1"
-                    >
-                      {issuingOnChain ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Issuing on Blockchain...
-                        </>
-                      ) : (
-                        <>
-                          <Award className="mr-2 h-4 w-4" />
-                          Issue on Blockchain
-                        </>
-                      )}
-                    </Button>
-                  )}
+                  </Button>
                 </div>
 
                 {/* Success Message */}
@@ -943,6 +1016,33 @@ export default function CreateCertificate() {
               </form>
             </CardContent>
           </Card>
+
+          {/* Transaction Status */}
+          {issuingOnChain && (
+            <Card className="mb-6 border-primary/30 bg-linear-to-r from-primary/5 to-primary/10 shadow-lg">
+              <CardContent className="pt-6">
+                <div className="flex items-center gap-4">
+                  <div className="p-3 bg-primary/10 rounded-full">
+                    <Loader2 className="h-8 w-8 text-primary animate-spin" />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-primary mb-1">
+                      {transactionStatus === "pending" &&
+                        "Waiting for confirmation..."}
+                      {transactionStatus === "mining" &&
+                        "Transaction submitted! Mining in progress..."}
+                    </h3>
+                    <p className="text-sm text-primary/80">
+                      {transactionStatus === "pending" &&
+                        "Please confirm the transaction in MetaMask"}
+                      {transactionStatus === "mining" &&
+                        "This usually takes 15-30 seconds on Sepolia. Please wait..."}
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Statistics */}
           {walletAddress && (

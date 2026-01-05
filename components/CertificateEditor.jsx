@@ -24,6 +24,15 @@ const CANVAS_RATIO = 297 / 210; // ~1.414
 const CANVAS_WIDTH = 1000;
 const CANVAS_HEIGHT = CANVAS_WIDTH / CANVAS_RATIO; // ~707
 
+const fonts = [
+  { name: 'Serif', value: 'serif' },
+  { name: 'Sans Serif', value: 'sans-serif' },
+  { name: 'Monospace', value: 'monospace' },
+  { name: 'Arial', value: 'Arial' },
+  { name: 'Times New Roman', value: 'Times New Roman' },
+  { name: 'Courier New', value: 'Courier New' },
+];
+
 export default function CertificateEditor({ mode, onBack, initialTemplate }) {
   const canvasRef = useRef(null);
   const [isDragging, setIsDragging] = useState(false);

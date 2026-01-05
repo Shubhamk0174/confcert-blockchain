@@ -4,14 +4,16 @@ import { useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Menu, X, Shield, Wallet, LogOut } from 'lucide-react';
+import { Menu, X, Shield, Wallet, LogOut, Sun, Moon } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { useTheme } from 'next-themes';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 
 export default function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
   const { walletAddress, loading, signInWithEthereum, signOut } = useAuth();
+  const { theme, setTheme } = useTheme();
 
   const handleWalletConnect = async () => {
     try {
@@ -25,6 +27,10 @@ export default function Navbar() {
     }
   };
 
+  const toggleTheme = () => {
+    setTheme(theme === 'dark' ? 'light' : 'dark');
+  };
+
   const navItems = [
     { name: 'Home', href: '/' },
     { name: 'Verify', href: '/verify' },
@@ -32,7 +38,7 @@ export default function Navbar() {
 
   const authenticatedItems = [
     { name: 'Create', href: '/create' },
-    { name: 'Issued Certificates', href: '/my-certificates' },
+    { name: 'Issued History', href: '/my-certificates' },
     { name: 'Templates', href: '/edit-template' },
   ];
 
@@ -75,6 +81,21 @@ export default function Navbar() {
                 {aboutItem.name}
               </Button>
             </Link>
+
+            <a
+              href="https://github.com/Shubhamk0174/confcert-blockchain"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="p-1.5 rounded-lg hover:bg-accent transition-colors"
+            >
+              <Image
+                src="/icons/icons8-github-64.png"
+                alt="GitHub"
+                width={24}
+                height={24}
+                className="transition-opacity dark:invert"
+              />
+            </a>
           </div>
 
           {/* Connect Wallet / User Menu */}
@@ -91,10 +112,9 @@ export default function Navbar() {
                   onClick={signOut}
                   variant="outline"
                   size="sm"
-                  className="gap-2"
+                  className="gap-2 mr-10"
                 >
-                  <LogOut className="h-4 w-4" />
-                  Disconnect
+                  <LogOut className="h-4 w-4 " />
                 </Button>
               </>
             ) : (
@@ -106,20 +126,17 @@ export default function Navbar() {
                 Connect Wallet
               </Button>
             )}
-                        <a
-              href="https://github.com/Shubhamk0174/confcert-blockchain"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="p-1.5 rounded-lg hover:bg-accent transition-colors"
+            <Button
+              onClick={toggleTheme}
+              variant="ghost"
+              size="sm"
+              className="p-2"
             >
-              <Image
-                src="/icons/icons8-github-64.png"
-                alt="GitHub"
-                width={24}
-                height={24}
-                className="transition-opacity dark:invert"
-              />
-            </a>
+              <Sun className="h-4 w-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
+              <Moon className="absolute h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+              <span className="sr-only">Toggle theme</span>
+            </Button>
+            
           </div>
 
           {/* Mobile menu button */}
@@ -170,6 +187,15 @@ export default function Navbar() {
               </Link>
 
               <div className="pt-2 border-t">
+                <Button
+                  onClick={toggleTheme}
+                  variant="ghost"
+                  className="w-full justify-start mb-2"
+                >
+                  <Sun className="h-4 w-4 mr-2 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
+                  <Moon className="absolute h-4 w-4 mr-2 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+                  <span>Toggle theme</span>
+                </Button>
                 <a
                   href="https://github.com/Shubhamk0174/confcert-blockchain"
                   target="_blank"

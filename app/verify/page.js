@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { Search, CheckCircle, XCircle, Loader2, Shield, Info, ExternalLink, FileText, User, Calendar } from 'lucide-react';
 import { Button } from '../../components/ui/button';
@@ -17,11 +18,13 @@ export default function Verify() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState('');
+  const [imageLoading, setImageLoading] = useState(false);
+  const searchParams = useSearchParams();
 
-  const handleVerify = async (e) => {
-    e.preventDefault();
+  const handleVerify = useCallback(async (certId = certificateId) => {
+    const idToVerify = certId || certificateId;
     
-    if (!certificateId || isNaN(certificateId)) {
+    if (!idToVerify || isNaN(idToVerify)) {
       setError('Please enter a valid certificate ID');
       return;
     }
@@ -35,13 +38,14 @@ export default function Verify() {
       await connectWallet();
       
       // Fetch certificate from blockchain
-      const response = await getCertificate(parseInt(certificateId));
+      const response = await getCertificate(parseInt(idToVerify));
       
       if (response.success) {
         setResult({
           valid: true,
           certificate: response.certificate
         });
+        setImageLoading(true); // Start loading image
       } else {
         setResult({
           valid: false,
@@ -55,12 +59,38 @@ export default function Verify() {
     } finally {
       setLoading(false);
     }
+  }, [certificateId]);
+
+  // Auto-verify if certificateid is in URL
+  useEffect(() => {
+    const urlCertificateId = searchParams.get('certificateid');
+    if (urlCertificateId && !result && !loading) {
+      setCertificateId(urlCertificateId);
+      handleVerify(urlCertificateId);
+    }
+  }, [searchParams, result, loading, handleVerify]);
+
+  // Fallback for image loading timeout
+  useEffect(() => {
+    if (imageLoading) {
+      const timeout = setTimeout(() => {
+        setImageLoading(false);
+      }, 10000); // 10 seconds timeout
+
+      return () => clearTimeout(timeout);
+    }
+  }, [imageLoading]);
+
+  const handleFormSubmit = async (e) => {
+    e.preventDefault();
+    await handleVerify();
   };
 
   const handleReset = () => {
     setCertificateId('');
     setResult(null);
     setError('');
+    setImageLoading(false);
   };
 
   return (
@@ -93,7 +123,7 @@ export default function Verify() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <form onSubmit={handleVerify} className="space-y-4">
+              <form onSubmit={handleFormSubmit} className="space-y-4">
                 <div className="flex gap-3">
                   <div className="flex-1">
                     <Input
@@ -105,6 +135,11 @@ export default function Verify() {
                       className="font-mono text-lg"
                       disabled={loading}
                     />
+                    {searchParams.get('certificateid') && !result && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Auto-verifying certificate from URL...
+                      </p>
+                    )}
                   </div>
                   <Button type="submit" disabled={loading} size="lg">
                     {loading ? (
@@ -229,26 +264,52 @@ export default function Verify() {
                       {/* Certificate Preview */}
                       <div className="border-t pt-6">
                         <h3 className="text-lg font-semibold mb-3">Certificate Preview</h3>
-                        <div className="bg-gray-100 rounded-lg p-4 flex items-center justify-center min-h-149.25 relative">
-                          <Image 
+                        <div className="bg-gray-50 rounded-lg p-4 flex items-center justify-center min-h-149 relative overflow-hidden">
+                          {imageLoading && (
+                            <div className="absolute inset-0 flex items-center justify-center bg-gray-50 z-10">
+                              <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                                <Loader2 className="h-8 w-8 animate-spin" />
+                                <p className="text-sm">Loading certificate...</p>
+                              </div>
+                            </div>
+                          )}
+                          <Image
                             fill
                             src={getIPFSUrl(result.certificate.ipfsHash)}
                             alt="Certificate"
-                            className="object-contain rounded-lg shadow-lg"
+                            className="object-contain rounded-lg shadow-sm"
                             onError={(e) => {
-                              e.target.style.display = 'none';
-                              e.target.nextSibling.style.display = 'flex';
+                              const target = e.target;
+                              const fallback = target.parentElement?.querySelector('.fallback');
+                              if (target && fallback) {
+                                target.style.display = 'none';
+                                fallback.style.display = 'flex';
+                              }
+                              setImageLoading(false);
                             }}
+                            onLoad={(e) => {
+                              const target = e.target;
+                              const fallback = target.parentElement?.querySelector('.fallback');
+                              if (fallback) {
+                                fallback.style.display = 'none';
+                              }
+                              setImageLoading(false);
+                            }}
+                            onLoadingComplete={() => setImageLoading(false)}
                           />
-                          <div className="hidden flex-col items-center gap-2 text-muted-foreground">
-                            <FileText className="h-16 w-16" />
-                            <p className="text-sm">Certificate preview unavailable</p>
-                            <a 
+                          <div className="fallback hidden flex-col items-center gap-3 text-muted-foreground">
+                            <FileText className="h-12 w-12" />
+                            <div className="text-center">
+                              <p className="text-sm font-medium">Certificate preview unavailable</p>
+                              <p className="text-xs">The image may still be loading or unavailable</p>
+                            </div>
+                            <a
                               href={getIPFSUrl(result.certificate.ipfsHash)}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="text-blue-600 hover:underline text-sm"
+                              className="inline-flex items-center gap-1 px-3 py-1 text-xs bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
                             >
+                              <ExternalLink className="h-3 w-3" />
                               View on IPFS
                             </a>
                           </div>
