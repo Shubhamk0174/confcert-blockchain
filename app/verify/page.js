@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { Suspense, useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { Search, CheckCircle, XCircle, Loader2, Shield, Info, ExternalLink, FileText, User, Calendar } from 'lucide-react';
@@ -13,7 +13,7 @@ import { getCertificate, connectWallet, formatTimestamp, getAddressLink } from '
 import { getIPFSUrl } from '../../lib/ipfs';
 import Image from 'next/image';
 
-export default function Verify() {
+function VerifyContent() {
   const [certificateId, setCertificateId] = useState('');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
@@ -351,5 +351,24 @@ export default function Verify() {
         </motion.div>
       </div>
     </div>
+  );
+}
+
+export default function Verify() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen pt-24 pb-20 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-4xl mx-auto">
+          <div className="flex items-center justify-center min-h-100">
+            <div className="flex flex-col items-center gap-3 text-muted-foreground">
+              <Loader2 className="h-8 w-8 animate-spin" />
+              <p>Loading verification page...</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    }>
+      <VerifyContent />
+    </Suspense>
   );
 }
