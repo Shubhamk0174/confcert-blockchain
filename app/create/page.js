@@ -42,6 +42,7 @@ import {
 import NextImage from "next/image";
 import localforage from 'localforage';
 import * as XLSX from 'xlsx';
+import { CANVAS_WIDTH, CANVAS_HEIGHT } from '../../lib/canvas-constants';
 
 export default function CreateCertificate() {
   const { user } = useAuth();
@@ -222,8 +223,8 @@ export default function CreateCertificate() {
   const generateCertificateFromTemplate = async (template, studentName) => {
     // Create a canvas and draw the template
     const canvas = document.createElement("canvas");
-    canvas.width = 1000; // Same as editor
-    canvas.height = 707; // Same as editor
+    canvas.width = CANVAS_WIDTH;
+    canvas.height = CANVAS_HEIGHT;
     const ctx = canvas.getContext("2d");
 
     // Draw background
@@ -1275,8 +1276,8 @@ export default function CreateCertificate() {
                         <div className="border rounded-lg p-4 bg-neutral-50">
                           <canvas
                             ref={previewCanvasRef}
-                            width={1000}
-                            height={707}
+                            width={CANVAS_WIDTH}
+                            height={CANVAS_HEIGHT}
                             className="w-full h-auto border border-neutral-200 bg-white rounded"
                           />
                           {!formData.studentName && (

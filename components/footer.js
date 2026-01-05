@@ -10,7 +10,7 @@ export default function Footer() {
         <div className="flex flex-col sm:flex-row items-center justify-center gap-2 text-sm text-muted-foreground">
           <span className="flex items-center gap-1">
             Made with
-            <Heart className="h-4 w-4 text-red-500 fill-red-500 animate-pulse" />
+            <Heart className="h-4 w-4 text-red-500 fill-red-500 " />
             by
             <span className="font-semibold text-foreground">Shubham</span>
           </span>

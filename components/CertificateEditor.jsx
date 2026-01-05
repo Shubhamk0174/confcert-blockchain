@@ -25,11 +25,7 @@ import {
   Grid3x3
 } from 'lucide-react';
 import localforage from 'localforage';
-
-// Certificate aspect ratio (A4 landscape: 297mm x 210mm)
-const CANVAS_RATIO = 297 / 210; // ~1.414
-const CANVAS_WIDTH = 800;
-const CANVAS_HEIGHT = CANVAS_WIDTH / CANVAS_RATIO; // ~566
+import { CANVAS_WIDTH, CANVAS_HEIGHT, CANVAS_RATIO } from '@/lib/canvas-constants';
 
 const fonts = [
   { name: 'Serif', value: 'serif' },
@@ -1114,13 +1110,17 @@ export default function CertificateEditor({ mode, onBack, initialTemplate }) {
                       <label className="text-sm text-neutral-600 dark:text-neutral-400 mb-1 block">Size</label>
                       <Input
                         type="number"
-                        value={selectedText.fontSize}
+                        value={selectedText.fontSize ?? ''}
                         onChange={(e) => {
-                          const val = parseInt(e.target.value);
-                          if (!isNaN(val)) {
-                            updateSelectedText('fontSize', val);
+                          const val = e.target.value === '' ? '' : Number(e.target.value);
+                          updateSelectedText('fontSize', val);
+                        }}
+                        onBlur={(e) => {
+                          if (e.target.value === '' || Number(e.target.value) === 0 || isNaN(Number(e.target.value))) {
+                            updateSelectedText('fontSize', 12);
                           }
                         }}
+                        placeholder="12"
                         className="bg-neutral-100 dark:bg-neutral-800 border-neutral-300 dark:border-neutral-700 text-neutral-900 dark:text-white"
                       />
                     </div>
@@ -1175,13 +1175,17 @@ export default function CertificateEditor({ mode, onBack, initialTemplate }) {
                       <div className="flex gap-2">
                         <Input
                           type="number"
-                          value={selectedText.rotation || 0}
+                          value={selectedText.rotation ?? ''}
                           onChange={(e) => {
-                            const val = parseInt(e.target.value);
-                            if (!isNaN(val)) {
-                              updateSelectedText('rotation', val);
+                            const val = e.target.value === '' ? '' : Number(e.target.value);
+                            updateSelectedText('rotation', val);
+                          }}
+                          onBlur={(e) => {
+                            if (e.target.value === '' || isNaN(Number(e.target.value))) {
+                              updateSelectedText('rotation', 0);
                             }
                           }}
+                          placeholder="0"
                           className="bg-neutral-100 dark:bg-neutral-800 border-neutral-300 dark:border-neutral-700 text-neutral-900 dark:text-white flex-1"
                           min="-180"
                           max="180"
@@ -1203,13 +1207,17 @@ export default function CertificateEditor({ mode, onBack, initialTemplate }) {
                           <label className="text-xs text-neutral-700 dark:text-neutral-500">Width</label>
                           <Input
                             type="number"
-                            value={Math.round(selectedText.width)}
+                            value={selectedText.width ?? ''}
                             onChange={(e) => {
-                              const val = parseInt(e.target.value);
-                              if (!isNaN(val)) {
-                                updateSelectedText('width', val);
+                              const val = e.target.value === '' ? '' : Number(e.target.value);
+                              updateSelectedText('width', val);
+                            }}
+                            onBlur={(e) => {
+                              if (e.target.value === '' || Number(e.target.value) === 0 || isNaN(Number(e.target.value))) {
+                                updateSelectedText('width', 50);
                               }
                             }}
+                            placeholder="50"
                             className="bg-neutral-100 dark:bg-neutral-800 border-neutral-300 dark:border-neutral-700 text-neutral-900 dark:text-white"
                           />
                         </div>
@@ -1217,13 +1225,17 @@ export default function CertificateEditor({ mode, onBack, initialTemplate }) {
                           <label className="text-xs text-neutral-700 dark:text-neutral-500">Height</label>
                           <Input
                             type="number"
-                            value={Math.round(selectedText.height)}
+                            value={selectedText.height ?? ''}
                             onChange={(e) => {
-                              const val = parseInt(e.target.value);
-                              if (!isNaN(val)) {
-                                updateSelectedText('height', val);
+                              const val = e.target.value === '' ? '' : Number(e.target.value);
+                              updateSelectedText('height', val);
+                            }}
+                            onBlur={(e) => {
+                              if (e.target.value === '' || Number(e.target.value) === 0 || isNaN(Number(e.target.value))) {
+                                updateSelectedText('height', 30);
                               }
                             }}
+                            placeholder="30"
                             className="bg-neutral-100 dark:bg-neutral-800 border-neutral-300 dark:border-neutral-700 text-neutral-900 dark:text-white"
                           />
                         </div>
@@ -1261,13 +1273,17 @@ export default function CertificateEditor({ mode, onBack, initialTemplate }) {
                       <label className="text-sm text-neutral-600 dark:text-neutral-400 mb-1 block">Size</label>
                       <Input
                         type="number"
-                        value={namePlaceholder.fontSize}
+                        value={namePlaceholder.fontSize ?? ''}
                         onChange={(e) => {
-                          const val = parseInt(e.target.value);
-                          if (!isNaN(val)) {
-                            updateNamePlaceholder('fontSize', val);
+                          const val = e.target.value === '' ? '' : Number(e.target.value);
+                          updateNamePlaceholder('fontSize', val);
+                        }}
+                        onBlur={(e) => {
+                          if (e.target.value === '' || Number(e.target.value) === 0 || isNaN(Number(e.target.value))) {
+                            updateNamePlaceholder('fontSize', 12);
                           }
                         }}
+                        placeholder="12"
                         className="bg-neutral-100 dark:bg-neutral-800 border-neutral-300 dark:border-neutral-700 text-neutral-900 dark:text-white"
                       />
                     </div>
@@ -1311,13 +1327,17 @@ export default function CertificateEditor({ mode, onBack, initialTemplate }) {
                       <div className="flex gap-2">
                         <Input
                           type="number"
-                          value={namePlaceholder.rotation || 0}
+                          value={namePlaceholder.rotation ?? ''}
                           onChange={(e) => {
-                            const val = parseInt(e.target.value);
-                            if (!isNaN(val)) {
-                              updateNamePlaceholder('rotation', val);
+                            const val = e.target.value === '' ? '' : Number(e.target.value);
+                            updateNamePlaceholder('rotation', val);
+                          }}
+                          onBlur={(e) => {
+                            if (e.target.value === '' || isNaN(Number(e.target.value))) {
+                              updateNamePlaceholder('rotation', 0);
                             }
                           }}
+                          placeholder="0"
                           className="bg-neutral-100 dark:bg-neutral-800 border-neutral-300 dark:border-neutral-700 text-neutral-900 dark:text-white flex-1"
                           min="-180"
                           max="180"
@@ -1356,13 +1376,17 @@ export default function CertificateEditor({ mode, onBack, initialTemplate }) {
                       <label className="text-sm text-neutral-600 dark:text-neutral-400 mb-1 block">Width</label>
                       <Input
                         type="number"
-                        value={logo.width}
+                        value={logo.width ?? ''}
                         onChange={(e) => {
-                          const val = parseInt(e.target.value);
-                          if (!isNaN(val)) {
-                            updateLogo('width', val);
+                          const val = e.target.value === '' ? '' : Number(e.target.value);
+                          updateLogo('width', val);
+                        }}
+                        onBlur={(e) => {
+                          if (e.target.value === '' || Number(e.target.value) === 0 || isNaN(Number(e.target.value))) {
+                            updateLogo('width', 50);
                           }
                         }}
+                        placeholder="50"
                         className="bg-neutral-100 dark:bg-neutral-800 border-neutral-300 dark:border-neutral-700 text-neutral-900 dark:text-white"
                       />
                     </div>
@@ -1370,13 +1394,17 @@ export default function CertificateEditor({ mode, onBack, initialTemplate }) {
                       <label className="text-sm text-neutral-600 dark:text-neutral-400 mb-1 block">Height</label>
                       <Input
                         type="number"
-                        value={logo.height}
+                        value={logo.height ?? ''}
                         onChange={(e) => {
-                          const val = parseInt(e.target.value);
-                          if (!isNaN(val)) {
-                            updateLogo('height', val);
+                          const val = e.target.value === '' ? '' : Number(e.target.value);
+                          updateLogo('height', val);
+                        }}
+                        onBlur={(e) => {
+                          if (e.target.value === '' || Number(e.target.value) === 0 || isNaN(Number(e.target.value))) {
+                            updateLogo('height', 50);
                           }
                         }}
+                        placeholder="50"
                         className="bg-neutral-100 dark:bg-neutral-800 border-neutral-300 dark:border-neutral-700 text-neutral-900 dark:text-white"
                       />
                     </div>
