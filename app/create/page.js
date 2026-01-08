@@ -70,6 +70,7 @@ export default function CreateCertificate() {
   const [formData, setFormData] = useState({
     studentName: "",
     email: "",
+    customPlaceholderValues: {}, // For storing custom placeholder values
   });
 
   const [sendEmail, setSendEmail] = useState(true);
@@ -86,6 +87,57 @@ export default function CreateCertificate() {
     checkWalletConnection();
     loadSavedTemplates();
   }, []);
+
+  // Re-parse Excel data when template changes in bulk mode
+  useEffect(() => {
+    if (isBulkMode && excelFile && selectedTemplate && selectedTemplate.customPlaceholders) {
+      // Re-read the Excel file to extract custom placeholder values
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        try {
+          const data = new Uint8Array(event.target.result);
+          const workbook = XLSX.read(data, { type: 'array' });
+          const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+          const jsonData = XLSX.utils.sheet_to_json(firstSheet);
+
+          if (jsonData.length === 0) return;
+
+          const students = jsonData.map((row, index) => {
+            const name = row.name || row.Name || row.studentName || row.StudentName || "";
+            const email = row.email || row.Email || "";
+
+            if (!name) return null;
+
+            // Extract custom placeholder values
+            const customPlaceholderValues = {};
+            if (selectedTemplate.customPlaceholders) {
+              selectedTemplate.customPlaceholders.forEach(placeholder => {
+                if (placeholder.key) {
+                  // Try different case variations of the key
+                  const value = row[placeholder.key] || 
+                               row[placeholder.key.toLowerCase()] || 
+                               row[placeholder.key.toUpperCase()] || 
+                               "";
+                  customPlaceholderValues[placeholder.key] = value;
+                }
+              });
+            }
+
+            return {
+              name: name.trim(),
+              email: email.trim(),
+              customPlaceholderValues,
+            };
+          }).filter(Boolean);
+
+          setStudentsData(students);
+        } catch (err) {
+          console.error('Error re-parsing Excel with template:', err);
+        }
+      };
+      reader.readAsArrayBuffer(excelFile);
+    }
+  }, [selectedTemplate, excelFile, isBulkMode]);
 
   const checkWalletConnection = async () => {
     const address = await getCurrentAccount();
@@ -113,6 +165,20 @@ export default function CreateCertificate() {
     setPreviewUrl(null);
     setError("");
     setIpfsHash(""); // Clear previous IPFS hash when selecting new template
+    
+    // Initialize custom placeholder values based on template
+    const initialCustomValues = {};
+    if (template.customPlaceholders && Array.isArray(template.customPlaceholders)) {
+      template.customPlaceholders.forEach(ph => {
+        if (ph.key) {
+          initialCustomValues[ph.key] = '';
+        }
+      });
+    }
+    setFormData(prev => ({
+      ...prev,
+      customPlaceholderValues: initialCustomValues
+    }));
   };
 
   const renderTemplatePreview = async () => {
@@ -199,6 +265,30 @@ export default function CreateCertificate() {
         ctx.fillText(displayName, nameX, nameElement.y);
         ctx.restore();
       }
+
+      // Draw custom placeholders
+      if (selectedTemplate.customPlaceholders && Array.isArray(selectedTemplate.customPlaceholders)) {
+        selectedTemplate.customPlaceholders.forEach((placeholder) => {
+          if (placeholder.key) {
+            ctx.save();
+            ctx.fillStyle = placeholder.color;
+            ctx.font = `${placeholder.fontWeight} ${placeholder.fontSize}px ${placeholder.fontFamily}`;
+            ctx.textAlign = placeholder.align;
+            ctx.textBaseline = "top";
+
+            const placeholderX =
+              placeholder.align === "center"
+                ? placeholder.x + placeholder.width / 2
+                : placeholder.align === "right"
+                ? placeholder.x + placeholder.width
+                : placeholder.x;
+
+            const displayValue = formData.customPlaceholderValues?.[placeholder.key] || `<${placeholder.key}>`;
+            ctx.fillText(displayValue, placeholderX, placeholder.y);
+            ctx.restore();
+          }
+        });
+      }
     } catch (error) {
       console.error("Error rendering template preview:", error);
     }
@@ -210,7 +300,7 @@ export default function CreateCertificate() {
       renderTemplatePreview();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [formData.studentName, selectedTemplate, useTemplate]);
+  }, [formData.studentName, formData.customPlaceholderValues, selectedTemplate, useTemplate]);
 
   const handleUseCustomFile = () => {
     setUseTemplate(false);
@@ -220,7 +310,7 @@ export default function CreateCertificate() {
     setError("");
   };
 
-  const generateCertificateFromTemplate = async (template, studentName) => {
+  const generateCertificateFromTemplate = async (template, studentName, customPlaceholderValues = {}) => {
     // Create a canvas and draw the template
     const canvas = document.createElement("canvas");
     canvas.width = CANVAS_WIDTH;
@@ -296,6 +386,29 @@ export default function CreateCertificate() {
 
     ctx.fillText(studentName, nameX, nameElement.y);
     ctx.restore();
+
+    // Draw custom placeholders
+    if (template.customPlaceholders && Array.isArray(template.customPlaceholders)) {
+      template.customPlaceholders.forEach((placeholder) => {
+        if (placeholder.key && customPlaceholderValues[placeholder.key]) {
+          ctx.save();
+          ctx.fillStyle = placeholder.color;
+          ctx.font = `${placeholder.fontWeight} ${placeholder.fontSize}px ${placeholder.fontFamily}`;
+          ctx.textAlign = placeholder.align;
+          ctx.textBaseline = "top";
+
+          const placeholderX =
+            placeholder.align === "center"
+              ? placeholder.x + placeholder.width / 2
+              : placeholder.align === "right"
+              ? placeholder.x + placeholder.width
+              : placeholder.x;
+
+          ctx.fillText(customPlaceholderValues[placeholder.key], placeholderX, placeholder.y);
+          ctx.restore();
+        }
+      });
+    }
 
     // Convert canvas to blob
     return new Promise((resolve) => {
@@ -381,7 +494,8 @@ export default function CreateCertificate() {
         // Generate certificate image from template
         fileToUpload = await generateCertificateFromTemplate(
           selectedTemplate,
-          formData.studentName
+          formData.studentName,
+          formData.customPlaceholderValues
         );
         if (!fileToUpload) {
           throw new Error("Failed to generate certificate from template");
@@ -603,9 +717,25 @@ export default function CreateCertificate() {
             throw new Error(`Row ${index + 1}: Missing name field`);
           }
 
+          // Extract custom placeholder values
+          const customPlaceholderValues = {};
+          if (selectedTemplate && selectedTemplate.customPlaceholders) {
+            selectedTemplate.customPlaceholders.forEach(placeholder => {
+              if (placeholder.key) {
+                // Try different case variations of the key
+                const value = row[placeholder.key] || 
+                             row[placeholder.key.toLowerCase()] || 
+                             row[placeholder.key.toUpperCase()] || 
+                             "";
+                customPlaceholderValues[placeholder.key] = value;
+              }
+            });
+          }
+
           return {
             name: name.trim(),
             email: email.trim(),
+            customPlaceholderValues,
           };
         });
 
@@ -630,10 +760,21 @@ export default function CreateCertificate() {
   };
 
   const downloadExcelTemplate = () => {
+    const templateRow = { name: "John Doe", email: "john@example.com" };
+    
+    // Add custom placeholder columns if template is selected
+    if (selectedTemplate && selectedTemplate.customPlaceholders) {
+      selectedTemplate.customPlaceholders.forEach(placeholder => {
+        if (placeholder.key) {
+          templateRow[placeholder.key] = `Sample ${placeholder.key}`;
+        }
+      });
+    }
+    
     const template = [
-      { name: "John Doe", email: "john@example.com" },
-      { name: "Jane Smith", email: "jane@example.com" },
-      { name: "Bob Johnson", email: "bob@example.com" },
+      templateRow,
+      { ...templateRow, name: "Jane Smith", email: "jane@example.com" },
+      { ...templateRow, name: "Bob Johnson", email: "bob@example.com" },
     ];
 
     const worksheet = XLSX.utils.json_to_sheet(template);
@@ -669,7 +810,11 @@ export default function CreateCertificate() {
       const certificates = [];
       for (let i = 0; i < studentsData.length; i++) {
         setBulkProgress({ current: i + 1, total: studentsData.length, stage: 'Generating certificates' });
-        const blob = await generateCertificateFromTemplate(selectedTemplate, studentsData[i].name);
+        const blob = await generateCertificateFromTemplate(
+          selectedTemplate, 
+          studentsData[i].name,
+          studentsData[i].customPlaceholderValues || {}
+        );
         certificates.push({ blob, student: studentsData[i] });
       }
 
@@ -963,6 +1108,14 @@ export default function CreateCertificate() {
                               <th className="px-4 py-2 text-left">#</th>
                               <th className="px-4 py-2 text-left">Name</th>
                               <th className="px-4 py-2 text-left">Email</th>
+                              {selectedTemplate && selectedTemplate.customPlaceholders && 
+                               selectedTemplate.customPlaceholders.map((placeholder, idx) => (
+                                placeholder.key && (
+                                  <th key={idx} className="px-4 py-2 text-left capitalize">
+                                    {placeholder.key.replace(/([A-Z])/g, ' $1').trim()}
+                                  </th>
+                                )
+                              ))}
                             </tr>
                           </thead>
                           <tbody>
@@ -971,6 +1124,14 @@ export default function CreateCertificate() {
                                 <td className="px-4 py-2">{index + 1}</td>
                                 <td className="px-4 py-2">{student.name}</td>
                                 <td className="px-4 py-2 text-muted-foreground">{student.email || '-'}</td>
+                                {selectedTemplate && selectedTemplate.customPlaceholders && 
+                                 selectedTemplate.customPlaceholders.map((placeholder, idx) => (
+                                  placeholder.key && (
+                                    <td key={idx} className="px-4 py-2 text-muted-foreground">
+                                      {student.customPlaceholderValues?.[placeholder.key] || '-'}
+                                    </td>
+                                  )
+                                ))}
                               </tr>
                             ))}
                           </tbody>
@@ -1174,6 +1335,38 @@ export default function CreateCertificate() {
                     </label>
                   </div>
                 </div>
+
+                {/* Custom Placeholder Fields */}
+                {useTemplate && selectedTemplate && selectedTemplate.customPlaceholders && 
+                 selectedTemplate.customPlaceholders.length > 0 && (
+                  <div className="space-y-4">
+                    <label className="text-sm font-medium">Custom Fields</label>
+                    {selectedTemplate.customPlaceholders.map((placeholder, index) => (
+                      placeholder.key && (
+                        <div key={index} className="space-y-2">
+                          <label className="text-sm text-muted-foreground capitalize">
+                            {placeholder.key.replace(/([A-Z])/g, ' $1').trim()}
+                          </label>
+                          <Input
+                            type="text"
+                            value={formData.customPlaceholderValues?.[placeholder.key] || ''}
+                            onChange={(e) => {
+                              setFormData(prev => ({
+                                ...prev,
+                                customPlaceholderValues: {
+                                  ...prev.customPlaceholderValues,
+                                  [placeholder.key]: e.target.value
+                                }
+                              }));
+                            }}
+                            placeholder={`Enter ${placeholder.key}`}
+                            disabled={issuingOnChain}
+                          />
+                        </div>
+                      )
+                    ))}
+                  </div>
+                )}
 
                 {/* Certificate Source Selection */}
                 <div className="space-y-4">

@@ -22,7 +22,9 @@ import {
   ZoomOut,
   Copy,
   RotateCw,
-  Grid3x3
+  Grid3x3,
+  Plus,
+  Minus
 } from 'lucide-react';
 import localforage from 'localforage';
 import { CANVAS_WIDTH, CANVAS_HEIGHT, CANVAS_RATIO } from '@/lib/canvas-constants';
@@ -65,6 +67,19 @@ export default function CertificateEditor({ mode, onBack, initialTemplate }) {
     width: Number(lg.width) || 100,
     height: Number(lg.height) || 100,
   } : null;
+
+  const sanitizeCustomPlaceholders = (placeholders) => {
+    if (!Array.isArray(placeholders)) return [];
+    return placeholders.map(ph => ({
+      ...ph,
+      fontSize: Number(ph.fontSize) || 24,
+      x: Number(ph.x) || 0,
+      y: Number(ph.y) || 0,
+      width: Number(ph.width) || 200,
+      height: Number(ph.height) || 40,
+      rotation: Number(ph.rotation) || 0,
+    }));
+  };
 
   const canvasRef = useRef(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -154,8 +169,14 @@ export default function CertificateEditor({ mode, onBack, initialTemplate }) {
     if (initialTemplate) return sanitizeLogo(initialTemplate.logo);
     return null;
   });
+  const [customPlaceholders, setCustomPlaceholders] = useState(() => {
+    if (initialTemplate && initialTemplate.customPlaceholders) {
+      return sanitizeCustomPlaceholders(initialTemplate.customPlaceholders);
+    }
+    return [];
+  });
   const [selectedElement, setSelectedElement] = useState(null);
-  const [selectedElementType, setSelectedElementType] = useState(null); // 'text', 'name', 'logo'
+  const [selectedElementType, setSelectedElementType] = useState(null); // 'text', 'name', 'logo', 'customPlaceholder'
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const [resizeStart, setResizeStart] = useState({ width: 0, height: 0, x: 0, y: 0 });
 
@@ -182,6 +203,7 @@ export default function CertificateEditor({ mode, onBack, initialTemplate }) {
       namePlaceholder: JSON.parse(JSON.stringify(namePlaceholder)),
       logo: logo ? JSON.parse(JSON.stringify(logo)) : null,
       backgroundImage,
+      customPlaceholders: JSON.parse(JSON.stringify(customPlaceholders)),
     };
     
     const newHistory = history.slice(0, historyIndex + 1);
@@ -195,7 +217,7 @@ export default function CertificateEditor({ mode, onBack, initialTemplate }) {
     }
     
     setHistory(newHistory);
-  }, [textElements, namePlaceholder, logo, backgroundImage, history, historyIndex]);
+  }, [textElements, namePlaceholder, logo, backgroundImage, customPlaceholders, history, historyIndex]);
 
   // Undo
   const undo = useCallback(() => {
@@ -206,6 +228,7 @@ export default function CertificateEditor({ mode, onBack, initialTemplate }) {
       setNamePlaceholder(state.namePlaceholder);
       setLogo(state.logo);
       setBackgroundImage(state.backgroundImage);
+      setCustomPlaceholders(state.customPlaceholders || []);
       setHistoryIndex(newIndex);
     }
   }, [history, historyIndex]);
@@ -219,6 +242,7 @@ export default function CertificateEditor({ mode, onBack, initialTemplate }) {
       setNamePlaceholder(state.namePlaceholder);
       setLogo(state.logo);
       setBackgroundImage(state.backgroundImage);
+      setCustomPlaceholders(state.customPlaceholders || []);
       setHistoryIndex(newIndex);
     }
   }, [history, historyIndex]);
@@ -283,8 +307,23 @@ export default function CertificateEditor({ mode, onBack, initialTemplate }) {
       };
       setLogo(duplicated);
       setTimeout(() => saveToHistory(), 0);
+    } else if (selectedElementType === 'customPlaceholder' && selectedElement !== null) {
+      setCustomPlaceholders(prev => {
+        const element = prev.find((el, idx) => idx === selectedElement);
+        if (element) {
+          const duplicated = {
+            ...element,
+            x: element.x + 20,
+            y: element.y + 20,
+          };
+          setTimeout(() => saveToHistory(), 0);
+          return [...prev, duplicated];
+        }
+        return prev;
+      });
+      setSelectedElement(customPlaceholders.length);
     }
-  }, [selectedElementType, selectedElement, textElements, logo, saveToHistory]);
+  }, [selectedElementType, selectedElement, textElements, logo, customPlaceholders, saveToHistory]);
 
   // Delete element function
   const deleteSelectedElement = useCallback(() => {
@@ -295,6 +334,11 @@ export default function CertificateEditor({ mode, onBack, initialTemplate }) {
       setTimeout(() => saveToHistory(), 0);
     } else if (selectedElementType === 'logo') {
       setLogo(null);
+      setSelectedElement(null);
+      setSelectedElementType(null);
+      setTimeout(() => saveToHistory(), 0);
+    } else if (selectedElementType === 'customPlaceholder' && selectedElement !== null) {
+      setCustomPlaceholders((prev) => prev.filter((el, idx) => idx !== selectedElement));
       setSelectedElement(null);
       setSelectedElementType(null);
       setTimeout(() => saveToHistory(), 0);
@@ -415,6 +459,33 @@ export default function CertificateEditor({ mode, onBack, initialTemplate }) {
       if (selectedElementType === 'name') {
         drawSelectionBox(namePlaceholder);
       }
+
+      // Draw custom placeholders
+      customPlaceholders.forEach((placeholder, index) => {
+        ctx.save();
+        if (placeholder.rotation) {
+          const centerX = placeholder.x + placeholder.width / 2;
+          const centerY = placeholder.y + placeholder.height / 2;
+          ctx.translate(centerX, centerY);
+          ctx.rotate((placeholder.rotation * Math.PI) / 180);
+          ctx.translate(-centerX, -centerY);
+        }
+        ctx.fillStyle = placeholder.color + '80'; // Semi-transparent
+        ctx.font = `${placeholder.fontWeight} ${placeholder.fontSize}px ${placeholder.fontFamily}`;
+        ctx.textAlign = placeholder.align;
+        ctx.textBaseline = 'top';
+        const placeholderTextX = placeholder.align === 'center' 
+          ? placeholder.x + placeholder.width / 2 
+          : placeholder.align === 'right'
+          ? placeholder.x + placeholder.width
+          : placeholder.x;
+        ctx.fillText(`<${placeholder.key}>`, placeholderTextX, placeholder.y);
+        ctx.restore();
+
+        if (selectedElementType === 'customPlaceholder' && selectedElement === index) {
+          drawSelectionBox(placeholder);
+        }
+      });
     }
 
     function drawGrid(ctx) {
@@ -504,7 +575,7 @@ export default function CertificateEditor({ mode, onBack, initialTemplate }) {
       
       ctx.restore();
     }
-  }, [backgroundImage, textElements, logo, namePlaceholder, selectedElement, selectedElementType, snapToGrid]);
+  }, [backgroundImage, textElements, logo, namePlaceholder, customPlaceholders, selectedElement, selectedElementType, snapToGrid]);
 
   const handleCanvasMouseDown = (e) => {
     const canvas = canvasRef.current;
@@ -523,6 +594,8 @@ export default function CertificateEditor({ mode, onBack, initialTemplate }) {
         currentElement = logo;
       } else if (selectedElementType === 'text') {
         currentElement = textElements.find(el => el.id === selectedElement);
+      } else if (selectedElementType === 'customPlaceholder') {
+        currentElement = customPlaceholders[selectedElement];
       }
 
       if (currentElement) {
@@ -550,6 +623,17 @@ export default function CertificateEditor({ mode, onBack, initialTemplate }) {
       setDragOffset({ x: x - namePlaceholder.x, y: y - namePlaceholder.y });
       setIsDragging(true);
       return;
+    }
+
+    // Check if clicking on custom placeholders
+    for (let i = customPlaceholders.length - 1; i >= 0; i--) {
+      if (isInsideElement(x, y, customPlaceholders[i])) {
+        setSelectedElement(i);
+        setSelectedElementType('customPlaceholder');
+        setDragOffset({ x: x - customPlaceholders[i].x, y: y - customPlaceholders[i].y });
+        setIsDragging(true);
+        return;
+      }
     }
 
     // Check if clicking on logo
@@ -676,6 +760,14 @@ export default function CertificateEditor({ mode, onBack, initialTemplate }) {
               : el
           )
         );
+      } else if (selectedElementType === 'customPlaceholder' && selectedElement !== null) {
+        setCustomPlaceholders(prev =>
+          prev.map((el, idx) =>
+            idx === selectedElement
+              ? { ...el, x: newX, y: newY, width: newWidth, height: newHeight }
+              : el
+          )
+        );
       }
       return;
     }
@@ -702,6 +794,18 @@ export default function CertificateEditor({ mode, onBack, initialTemplate }) {
       setTextElements((prev) =>
         prev.map((el) =>
           el.id === selectedElement
+            ? {
+                ...el,
+                x: Math.max(0, Math.min(snappedX, CANVAS_WIDTH - el.width)),
+                y: Math.max(0, Math.min(snappedY, CANVAS_HEIGHT - el.height)),
+              }
+            : el
+        )
+      );
+    } else if (selectedElementType === 'customPlaceholder' && selectedElement !== null) {
+      setCustomPlaceholders((prev) =>
+        prev.map((el, idx) =>
+          idx === selectedElement
             ? {
                 ...el,
                 x: Math.max(0, Math.min(snappedX, CANVAS_WIDTH - el.width)),
@@ -812,6 +916,32 @@ export default function CertificateEditor({ mode, onBack, initialTemplate }) {
     setLogo((prev) => ({ ...prev, [property]: value }));
   };
 
+  const addCustomPlaceholder = () => {
+    const newPlaceholder = {
+      key: '',
+      x: CANVAS_WIDTH / 2 - 100,
+      y: CANVAS_HEIGHT / 2 - 20,
+      width: 200,
+      height: 40,
+      fontSize: 24,
+      fontFamily: 'sans-serif',
+      fontWeight: 'normal',
+      color: '#000000',
+      align: 'left',
+      rotation: 0,
+    };
+    setCustomPlaceholders([...customPlaceholders, newPlaceholder]);
+    setSelectedElement(customPlaceholders.length);
+    setSelectedElementType('customPlaceholder');
+    setTimeout(() => saveToHistory(), 0);
+  };
+
+  const updateCustomPlaceholder = (index, property, value) => {
+    setCustomPlaceholders(prev =>
+      prev.map((ph, idx) => (idx === index ? { ...ph, [property]: value } : ph))
+    );
+  };
+
   const saveTemplate = async () => {
     const templateData = {
       id: initialTemplate ? initialTemplate.id : Date.now(),
@@ -820,6 +950,7 @@ export default function CertificateEditor({ mode, onBack, initialTemplate }) {
       textElements,
       namePlaceholder,
       logo,
+      customPlaceholders,
       canvasWidth: CANVAS_WIDTH,
       canvasHeight: CANVAS_HEIGHT,
       mode,
@@ -1029,13 +1160,18 @@ export default function CertificateEditor({ mode, onBack, initialTemplate }) {
                   <div className="mb-3 p-2.5 bg-primary/10 border border-primary/30 rounded-md text-xs text-neutral-900 dark:text-white font-medium flex items-center gap-2">
                     <span className="text-primary">●</span>
                     {selectedElementType === 'name' ? 'Name Placeholder' : 
-                     selectedElementType === 'logo' ? 'Logo' : 'Text Element'} Selected
+                     selectedElementType === 'logo' ? 'Logo' : 
+                     selectedElementType === 'customPlaceholder' ? 'Custom Placeholder' : 'Text Element'} Selected
                   </div>
                 ) : null}
                 <div className="space-y-2">
                   <Button onClick={addTextElement} className="w-full justify-start gap-2" variant="outline">
                     <Type className="w-4 h-4" />
                     Add Text
+                  </Button>
+                  <Button onClick={addCustomPlaceholder} className="w-full justify-start gap-2" variant="outline">
+                    <Plus className="w-4 h-4" />
+                    Add Custom Placeholder
                   </Button>
                   <label className="block">
                     <Button asChild className="w-full justify-start gap-2" variant="outline">
@@ -1407,6 +1543,144 @@ export default function CertificateEditor({ mode, onBack, initialTemplate }) {
                         placeholder="50"
                         className="bg-neutral-100 dark:bg-neutral-800 border-neutral-300 dark:border-neutral-700 text-neutral-900 dark:text-white"
                       />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Custom Placeholder Properties */}
+            {selectedElementType === 'customPlaceholder' && selectedElement !== null && customPlaceholders[selectedElement] && (
+              <Card className="bg-white dark:bg-neutral-900 border-neutral-200 dark:border-neutral-800">
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-semibold text-neutral-900 dark:text-white">Custom Placeholder</h3>
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      onClick={deleteSelectedElement}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="text-sm text-neutral-600 dark:text-neutral-400 mb-1 block">Placeholder Key</label>
+                      <Input
+                        value={customPlaceholders[selectedElement].key}
+                        onChange={(e) => updateCustomPlaceholder(selectedElement, 'key', e.target.value)}
+                        className="bg-neutral-100 dark:bg-neutral-800 border-neutral-300 dark:border-neutral-700 text-neutral-900 dark:text-white"
+                        placeholder="e.g., courseName, date, etc."
+                      />
+                      <p className="text-xs text-neutral-500 mt-1">This key will be used to fill in the value</p>
+                    </div>
+                    <div>
+                      <label className="text-sm text-neutral-600 dark:text-neutral-400 mb-1 block">Font</label>
+                      <select
+                        value={customPlaceholders[selectedElement].fontFamily}
+                        onChange={(e) => updateCustomPlaceholder(selectedElement, 'fontFamily', e.target.value)}
+                        className="w-full p-2 rounded-md bg-neutral-100 dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 text-neutral-900 dark:text-white"
+                      >
+                        {fonts.map((font) => (
+                          <option key={font.value} value={font.value}>
+                            {font.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-sm text-neutral-600 dark:text-neutral-400 mb-1 block">Size</label>
+                      <Input
+                        type="number"
+                        value={customPlaceholders[selectedElement].fontSize ?? ''}
+                        onChange={(e) => {
+                          const val = e.target.value === '' ? '' : Number(e.target.value);
+                          updateCustomPlaceholder(selectedElement, 'fontSize', val);
+                        }}
+                        onBlur={(e) => {
+                          if (e.target.value === '' || Number(e.target.value) === 0 || isNaN(Number(e.target.value))) {
+                            updateCustomPlaceholder(selectedElement, 'fontSize', 12);
+                          }
+                        }}
+                        placeholder="12"
+                        className="bg-neutral-100 dark:bg-neutral-800 border-neutral-300 dark:border-neutral-700 text-neutral-900 dark:text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm text-neutral-600 dark:text-neutral-400 mb-1 block">Weight</label>
+                      <select
+                        value={customPlaceholders[selectedElement].fontWeight}
+                        onChange={(e) => updateCustomPlaceholder(selectedElement, 'fontWeight', e.target.value)}
+                        className="w-full p-2 rounded-md bg-neutral-100 dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 text-neutral-900 dark:text-white"
+                      >
+                        <option value="normal">Normal</option>
+                        <option value="bold">Bold</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-sm text-neutral-600 dark:text-neutral-400 mb-1 block">Color</label>
+                      <Input
+                        type="color"
+                        value={customPlaceholders[selectedElement].color}
+                        onChange={(e) => updateCustomPlaceholder(selectedElement, 'color', e.target.value)}
+                        className="bg-neutral-100 dark:bg-neutral-800 border-neutral-300 dark:border-neutral-700 h-10"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm text-neutral-600 dark:text-neutral-400 mb-1 block">Alignment</label>
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant={customPlaceholders[selectedElement].align === 'left' ? 'default' : 'outline'}
+                          onClick={() => updateCustomPlaceholder(selectedElement, 'align', 'left')}
+                        >
+                          <AlignLeft className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant={customPlaceholders[selectedElement].align === 'center' ? 'default' : 'outline'}
+                          onClick={() => updateCustomPlaceholder(selectedElement, 'align', 'center')}
+                        >
+                          <AlignCenter className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant={customPlaceholders[selectedElement].align === 'right' ? 'default' : 'outline'}
+                          onClick={() => updateCustomPlaceholder(selectedElement, 'align', 'right')}
+                        >
+                          <AlignRight className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-sm text-neutral-600 dark:text-neutral-400 mb-1 block">Rotation (degrees)</label>
+                      <div className="flex gap-2">
+                        <Input
+                          type="number"
+                          value={customPlaceholders[selectedElement].rotation ?? ''}
+                          onChange={(e) => {
+                            const val = e.target.value === '' ? '' : Number(e.target.value);
+                            updateCustomPlaceholder(selectedElement, 'rotation', val);
+                          }}
+                          onBlur={(e) => {
+                            if (e.target.value === '' || isNaN(Number(e.target.value))) {
+                              updateCustomPlaceholder(selectedElement, 'rotation', 0);
+                            }
+                          }}
+                          placeholder="0"
+                          className="bg-neutral-100 dark:bg-neutral-800 border-neutral-300 dark:border-neutral-700 text-neutral-900 dark:text-white flex-1"
+                          min="-180"
+                          max="180"
+                        />
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => updateCustomPlaceholder(selectedElement, 'rotation', 0)}
+                          title="Reset Rotation"
+                        >
+                          <RotateCw className="w-4 h-4" />
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 </CardContent>
