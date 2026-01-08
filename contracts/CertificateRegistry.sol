@@ -70,7 +70,7 @@ contract CertificateRegistry {
     function issueCertificate(
         string memory _studentName,
         string memory _ipfsHash
-    ) public onlyAuthorized returns (uint256) {
+    ) public returns (uint256) {
         require(bytes(_studentName).length > 0, "Student name cannot be empty");
         require(bytes(_ipfsHash).length > 0, "IPFS hash cannot be empty");
         
@@ -109,7 +109,7 @@ contract CertificateRegistry {
     function bulkIssueCertificates(
         string[] memory _studentNames,
         string[] memory _ipfsHashes
-    ) public onlyAuthorized returns (uint256[] memory) {
+    ) public returns (uint256[] memory) {
         require(_studentNames.length > 0, "Must provide at least one certificate");
         require(_studentNames.length == _ipfsHashes.length, "Arrays length mismatch");
         require(_studentNames.length <= 100, "Cannot issue more than 100 certificates at once");
