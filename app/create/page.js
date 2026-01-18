@@ -390,23 +390,22 @@ export default function CreateCertificate() {
     // Draw custom placeholders
     if (template.customPlaceholders && Array.isArray(template.customPlaceholders)) {
       template.customPlaceholders.forEach((placeholder) => {
-        if (placeholder.key && customPlaceholderValues[placeholder.key]) {
-          ctx.save();
-          ctx.fillStyle = placeholder.color;
-          ctx.font = `${placeholder.fontWeight} ${placeholder.fontSize}px ${placeholder.fontFamily}`;
-          ctx.textAlign = placeholder.align;
-          ctx.textBaseline = "top";
+        ctx.save();
+        ctx.fillStyle = placeholder.color;
+        ctx.font = `${placeholder.fontWeight} ${placeholder.fontSize}px ${placeholder.fontFamily}`;
+        ctx.textAlign = placeholder.align;
+        ctx.textBaseline = "top";
 
-          const placeholderX =
-            placeholder.align === "center"
-              ? placeholder.x + placeholder.width / 2
-              : placeholder.align === "right"
-              ? placeholder.x + placeholder.width
-              : placeholder.x;
+        const placeholderX =
+          placeholder.align === "center"
+            ? placeholder.x + placeholder.width / 2
+            : placeholder.align === "right"
+            ? placeholder.x + placeholder.width
+            : placeholder.x;
 
-          ctx.fillText(customPlaceholderValues[placeholder.key], placeholderX, placeholder.y);
-          ctx.restore();
-        }
+        const value = customPlaceholderValues[placeholder.key] || placeholder.placeholder || "";
+        ctx.fillText(value, placeholderX, placeholder.y);
+        ctx.restore();
       });
     }
 

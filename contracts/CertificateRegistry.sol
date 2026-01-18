@@ -1,30 +1,25 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-/**
- * @title CertificateRegistry
- * @dev Smart contract for managing blockchain-based certificates
- * @notice This contract stores certificate metadata on-chain while actual certificate files are stored on IPFS
- */
 contract CertificateRegistry {
     
     // Structure to store certificate details
     struct Certificate {
-        uint256 id;                 // Unique certificate ID
-        string studentName;         // Name of the certificate recipient
-        string ipfsHash;           // IPFS hash (CID) where certificate image is stored
-        address issuer;            // Address of the coordinator who issued the certificate
-        uint256 timestamp;         // Timestamp when certificate was issued
-        bool exists;               // Flag to check if certificate exists
+        uint256 id;                 
+        string studentName;         
+        string ipfsHash;           
+        address issuer;            
+        uint256 timestamp;        
+        bool exists;               
     }
     
     // State variables
-    uint256 private certificateCounter;  // Counter for generating unique IDs (starts from 1001)
-    address public owner;                 // Contract owner (main coordinator)
+    uint256 private certificateCounter;  
+    address public owner;                
     
     // Mappings
-    mapping(uint256 => Certificate) public certificates;  // certificateId => Certificate
-    mapping(address => bool) public authorizedIssuers;    // Addresses allowed to issue certificates
+    mapping(uint256 => Certificate) public certificates;  
+    mapping(address => bool) public authorizedIssuers;   
     
     // Events
     event CertificateIssued(
@@ -52,21 +47,14 @@ contract CertificateRegistry {
         _;
     }
     
-    /**
-     * @dev Constructor - initializes contract with owner and sets starting certificate ID
-     */
+
     constructor() {
         owner = msg.sender;
         authorizedIssuers[msg.sender] = true;
         certificateCounter = 1000;  // First certificate will be 1001
     }
     
-    /**
-     * @dev Issue a new certificate
-     * @param _studentName Name of the student receiving the certificate
-     * @param _ipfsHash IPFS hash (CID) of the certificate image
-     * @return certificateId The unique ID assigned to this certificate
-     */
+
     function issueCertificate(
         string memory _studentName,
         string memory _ipfsHash
@@ -100,12 +88,7 @@ contract CertificateRegistry {
         return newCertificateId;
     }
     
-    /**
-     * @dev Issue multiple certificates in a single transaction (bulk issuance)
-     * @param _studentNames Array of student names
-     * @param _ipfsHashes Array of IPFS hashes corresponding to each certificate
-     * @return certificateIds Array of generated certificate IDs
-     */
+
     function bulkIssueCertificates(
         string[] memory _studentNames,
         string[] memory _ipfsHashes
@@ -148,16 +131,7 @@ contract CertificateRegistry {
         return certificateIds;
     }
     
-    /**
-     * @dev Verify and retrieve certificate details by ID
-     * @param _certificateId The unique certificate ID to look up
-     * @return id Certificate ID
-     * @return studentName Name on the certificate
-     * @return ipfsHash IPFS hash of the certificate
-     * @return issuer Address that issued the certificate
-     * @return timestamp When the certificate was issued
-     * @return exists Whether the certificate exists
-     */
+
     function getCertificate(uint256 _certificateId) 
         public 
         view 
@@ -181,20 +155,12 @@ contract CertificateRegistry {
         );
     }
     
-    /**
-     * @dev Check if a certificate exists
-     * @param _certificateId The certificate ID to check
-     * @return bool True if certificate exists
-     */
+
     function verifyCertificate(uint256 _certificateId) public view returns (bool) {
         return certificates[_certificateId].exists;
     }
     
-    /**
-     * @dev Get all certificates issued by a specific address
-     * @param _issuer Address of the issuer
-     * @return certificateIds Array of certificate IDs issued by this address
-     */
+
     function getCertificatesByIssuer(address _issuer) 
         public 
         view 
@@ -221,39 +187,25 @@ contract CertificateRegistry {
         return result;
     }
     
-    /**
-     * @dev Get the current certificate counter value
-     * @return uint256 The last issued certificate ID
-     */
+
     function getCurrentCounter() public view returns (uint256) {
         return certificateCounter;
     }
-    
-    /**
-     * @dev Authorize a new address to issue certificates
-     * @param _issuer Address to authorize
-     */
+
     function authorizeIssuer(address _issuer) public onlyOwner {
         require(_issuer != address(0), "Invalid address");
         authorizedIssuers[_issuer] = true;
         emit IssuerAuthorized(_issuer);
     }
     
-    /**
-     * @dev Revoke authorization from an issuer
-     * @param _issuer Address to revoke
-     */
+
     function revokeIssuer(address _issuer) public onlyOwner {
         require(_issuer != owner, "Cannot revoke owner");
         authorizedIssuers[_issuer] = false;
         emit IssuerRevoked(_issuer);
     }
     
-    /**
-     * @dev Check if an address is authorized to issue certificates
-     * @param _issuer Address to check
-     * @return bool True if authorized
-     */
+
     function isAuthorized(address _issuer) public view returns (bool) {
         return authorizedIssuers[_issuer] || _issuer == owner;
     }

@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "exposeserver1": "lt --port 3000 --subdomain preparkbackend1",
+    "exposeserver2": "lt --port 3000 --subdomain preparkbackend2"
   },
   "dependencies": {
     "@radix-ui/react-avatar": "^1.1.11",
