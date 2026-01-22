@@ -82,6 +82,10 @@ export default function CreateCertificate() {
   const [bulkProgress, setBulkProgress] = useState({ current: 0, total: 0 });
   const [bulkResults, setBulkResults] = useState(null);
 
+  // Preview rendering state
+  const renderIdRef = useRef(0);
+  const renderTimeoutRef = useRef(null);
+
   // Check wallet connection on mount
   useEffect(() => {
     checkWalletConnection();
@@ -181,13 +185,13 @@ export default function CreateCertificate() {
     }));
   };
 
-  const renderTemplatePreview = async () => {
+  const renderTemplatePreview = async (renderId) => {
     if (!previewCanvasRef.current || !selectedTemplate) return;
 
     const canvas = previewCanvasRef.current;
     const ctx = canvas.getContext("2d");
 
-    // Clear canvas
+    // Clear canvas immediately
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     try {
@@ -200,11 +204,20 @@ export default function CreateCertificate() {
           img.onerror = () => resolve(); // Continue even if image fails
           img.src = selectedTemplate.backgroundImage;
         });
+        
+        // Check if this render is still valid
+        if (renderId !== renderIdRef.current) return;
+        
+        // Clear again before drawing (in case another render started)
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
       } else {
         ctx.fillStyle = "#ffffff";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
       }
+
+      // Check if this render is still valid
+      if (renderId !== renderIdRef.current) return;
 
       // Draw logo
       if (selectedTemplate.logo) {
@@ -215,6 +228,10 @@ export default function CreateCertificate() {
           logoImg.onerror = () => resolve(); // Continue even if logo fails
           logoImg.src = selectedTemplate.logo.url;
         });
+        
+        // Check if this render is still valid
+        if (renderId !== renderIdRef.current) return;
+        
         ctx.drawImage(
           logoImg,
           selectedTemplate.logo.x,
@@ -223,6 +240,9 @@ export default function CreateCertificate() {
           selectedTemplate.logo.height
         );
       }
+
+      // Check if this render is still valid
+      if (renderId !== renderIdRef.current) return;
 
       // Draw text elements
       if (selectedTemplate.textElements) {
@@ -245,6 +265,9 @@ export default function CreateCertificate() {
         });
       }
 
+      // Check if this render is still valid
+      if (renderId !== renderIdRef.current) return;
+
       // Draw name placeholder with actual name or placeholder text
       const nameElement = selectedTemplate.namePlaceholder;
       if (nameElement) {
@@ -265,6 +288,9 @@ export default function CreateCertificate() {
         ctx.fillText(displayName, nameX, nameElement.y);
         ctx.restore();
       }
+
+      // Check if this render is still valid
+      if (renderId !== renderIdRef.current) return;
 
       // Draw custom placeholders
       if (selectedTemplate.customPlaceholders && Array.isArray(selectedTemplate.customPlaceholders)) {
@@ -297,8 +323,27 @@ export default function CreateCertificate() {
   // Update template preview when student name or template changes
   useEffect(() => {
     if (useTemplate && selectedTemplate && previewCanvasRef.current) {
-      renderTemplatePreview();
+      // Clear any pending render timeout
+      if (renderTimeoutRef.current) {
+        clearTimeout(renderTimeoutRef.current);
+      }
+
+      // Increment render ID to cancel any in-progress renders
+      renderIdRef.current += 1;
+      const currentRenderId = renderIdRef.current;
+
+      // Debounce the render to avoid too many rapid updates
+      renderTimeoutRef.current = setTimeout(() => {
+        renderTemplatePreview(currentRenderId);
+      }, 100); // 100ms debounce
     }
+
+    // Cleanup function
+    return () => {
+      if (renderTimeoutRef.current) {
+        clearTimeout(renderTimeoutRef.current);
+      }
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [formData.studentName, formData.customPlaceholderValues, selectedTemplate, useTemplate]);
 
@@ -494,7 +539,7 @@ export default function CreateCertificate() {
         fileToUpload = await generateCertificateFromTemplate(
           selectedTemplate,
           formData.studentName,
-          formData.customPlaceholderValues
+          formData.customPlaceholderValues || {}
         );
         if (!fileToUpload) {
           throw new Error("Failed to generate certificate from template");
@@ -565,7 +610,8 @@ export default function CreateCertificate() {
           // Generate certificate image from template
           fileToUpload = await generateCertificateFromTemplate(
             selectedTemplate,
-            formData.studentName
+            formData.studentName,
+            formData.customPlaceholderValues || {}
           );
           if (!fileToUpload) {
             throw new Error("Failed to generate certificate from template");
